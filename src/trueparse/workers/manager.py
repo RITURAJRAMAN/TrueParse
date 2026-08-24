@@ -11,7 +11,7 @@ from trueparse.core.config import ParseOptions, EngineConfig
 from trueparse.pipeline.runner import PDFParser
 from trueparse.workers.job_store import SQLiteJobStore, JobRecord
 
-logger = logging.getLogger("ParsingEngine")
+logger = logging.getLogger("trueparse")
 
 
 def _execute_parse_worker(

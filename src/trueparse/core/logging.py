@@ -4,12 +4,12 @@ import sys
 from typing import Optional
 
 
-def setup_logging(level: int = logging.INFO) -> None:
-    """Configures structured, colored console logging for TrueParse."""
-    logger = logging.getLogger("ParsingEngine")
+def setup_logging(level: int = logging.INFO) -> logging.Logger:
+    """Configures structured console logging for TrueParse."""
+    logger = logging.getLogger("trueparse")
     logger.setLevel(level)
+    logger.propagate = False
 
-    # Avoid duplicate handlers if already initialized
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
@@ -20,12 +20,7 @@ def setup_logging(level: int = logging.INFO) -> None:
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-    # Also configure root logger level if not set
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    return logger
 
 
 # Automatically initialize default logging on import

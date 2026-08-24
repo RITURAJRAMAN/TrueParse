@@ -44,11 +44,11 @@ def inspect(
             table.add_row(
                 str(p.page_number),
                 f"{p.width:.0f}x{p.height:.0f}",
-                "✓" if p.has_native_text else "✗",
+                "[green]YES[/green]" if p.has_native_text else "[dim]NO[/dim]",
                 str(p.word_count),
                 str(p.embedded_images),
                 str(p.drawing_count),
-                "YES" if p.likely_scan else "no",
+                "[yellow]YES[/yellow]" if p.likely_scan else "NO",
             )
         console.print(table)
 
@@ -179,7 +179,7 @@ def batch(
     table.add_column("Score", justify="right")
 
     for j in manager.get_batch_status(batch_id):
-        status_style = "[green]✓ OK[/green]" if j.status == "completed" else "[red]✗ FAILED[/red]"
+        status_style = "[green]COMPLETED[/green]" if j.status == "completed" else "[red]FAILED[/red]"
         doc_id = (j.result or {}).get("document_id", "-") if j.result else "-"
         pages = str((j.result or {}).get("page_count", "-")) if j.result else "-"
         score = f"{(j.result or {}).get('quality_score', 0):.2f}" if j.result else "-"
@@ -188,5 +188,20 @@ def batch(
     console.print(table)
 
 
+@app.command("serve")
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host address to bind"),
+    port: int = typer.Option(8000, "--port", "-p", help="Port to bind"),
+    reload: bool = typer.Option(False, "--reload", help="Enable auto-reload for development"),
+):
+    """Start the TrueParse REST API server with interactive Swagger documentation."""
+    import uvicorn
+
+    console.print(f"[bold green]Starting TrueParse API server[/bold green] on [cyan]http://{host}:{port}[/cyan]")
+    console.print(f"Interactive Swagger Docs: [link=http://{host}:{port}/docs]http://{host}:{port}/docs[/link]\n")
+    uvicorn.run("trueparse.api.routes:app", host=host, port=port, reload=reload)
+
+
 if __name__ == "__main__":
     app()
+

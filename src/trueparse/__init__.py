@@ -1,6 +1,7 @@
 """TrueParse - Open-source canonical PDF parsing and document understanding engine."""
 
 from trueparse.pipeline.runner import PDFParser
+from trueparse.pdf.inspector import PDFInspector, DocumentInspection
 from trueparse.core.config import ParseOptions, EngineConfig
 from trueparse.core.enums import ParsingProfile, OCRMode, ElementType, AssetType, SourceMethod, RelationshipType
 from trueparse.core.models import (
@@ -24,6 +25,8 @@ __version__ = "0.1.0"
 
 __all__ = [
     "PDFParser",
+    "PDFInspector",
+    "DocumentInspection",
     "ParseOptions",
     "EngineConfig",
     "ParsingProfile",

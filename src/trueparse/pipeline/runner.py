@@ -34,7 +34,7 @@ from trueparse.storage.filesystem import FileSystemStorage
 from trueparse.serializer.json import JSONSerializer
 from trueparse.serializer.markdown import MarkdownExporter
 
-logger = logging.getLogger("ParsingEngine")
+logger = logging.getLogger("trueparse")
 
 
 class PDFParser:
