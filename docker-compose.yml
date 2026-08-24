@@ -1,0 +1,14 @@
+services:
+  trueparse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pdf-intelligence-engine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/output:/app/data/output
+      - ./data/intake:/app/data/intake
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

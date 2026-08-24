@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trueparse"
+version = "0.1.0"
+description = "High-performance document parsing and layout intelligence engine"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "TrueParse Contributors" }
+]
+keywords = [
+    "pdf",
+    "pdf-parsing",
+    "document-ai",
+    "layout-analysis",
+    "table-extraction",
+    "ocr",
+    "document-intelligence",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Text Processing :: General",
+]
+dependencies = [
+    "pymupdf>=1.23.0",
+    "pymupdf-layout>=1.24.0",
+    "pydantic>=2.0.0",
+    "pillow>=10.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "python-multipart>=0.0.6",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "httpx>=0.24.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/RITURAJRAMAN/TrueParse"
+Documentation = "https://github.com/RITURAJRAMAN/TrueParse#readme"
+Repository = "https://github.com/RITURAJRAMAN/TrueParse.git"
+Issues = "https://github.com/RITURAJRAMAN/TrueParse/issues"
+Changelog = "https://github.com/RITURAJRAMAN/TrueParse/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+
+[project.scripts]
+trueparse = "trueparse.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v"
