@@ -1,14 +1,8 @@
-import os
-import shutil
 from pathlib import Path
 import pytest
 from trueparse.pipeline.runner import PDFParser
 from trueparse.core.config import ParseOptions
 from trueparse.pdf.inspector import PDFInspector
-
-
-DATA_DIR = Path(__file__).parent.parent / "Data" / "InputPDF"
-TEST_PDF = DATA_DIR / "Q226+Mgt+Report.pdf"
 
 
 def test_pdf_inspector(sample_pdf_path):
@@ -25,7 +19,7 @@ def test_end_to_end_pipeline(tmp_path, sample_pdf_path):
     options = ParseOptions(
         output_path=str(output_dir),
         debug=True,
-        max_pages=3,  # parse first 3 pages for rapid test
+        max_pages=3,
     )
     parser = PDFParser(options=options)
     doc = parser.parse(sample_pdf_path)
@@ -45,12 +39,12 @@ def test_end_to_end_pipeline(tmp_path, sample_pdf_path):
     debug_dir = doc_dir / "debug" / "pages"
     assert debug_dir.exists()
     page_pngs = list(debug_dir.glob("*.png"))
-    assert len(page_pngs) == 3
+    assert len(page_pngs) == len(doc.pages)
 
     # Check assets directory
     assets_dir = doc_dir / "assets"
     assert assets_dir.exists()
 
     # Check source PDF is saved with original filename
-    source_file = doc_dir / "source" / TEST_PDF.name
+    source_file = doc_dir / "source" / sample_pdf_path.name
     assert source_file.exists()

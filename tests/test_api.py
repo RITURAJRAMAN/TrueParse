@@ -1,10 +1,7 @@
-from pathlib import Path
 from fastapi.testclient import TestClient
 from trueparse.api.routes import app
 
 client = TestClient(app)
-DATA_DIR = Path(__file__).parent.parent / "Data" / "InputPDF"
-TEST_PDF = DATA_DIR / "Q226+Mgt+Report.pdf"
 
 
 def test_health_endpoint():
@@ -15,19 +12,19 @@ def test_health_endpoint():
     assert "version" in data
 
 
-def test_inspect_endpoint():
-    response = client.post("/v1/documents/inspect", json={"file_path": str(TEST_PDF)})
+def test_inspect_endpoint(sample_pdf_path):
+    response = client.post("/v1/documents/inspect", json={"file_path": str(sample_pdf_path)})
     assert response.status_code == 200
     data = response.json()
     assert "inspection" in data
     assert data["inspection"]["page_count"] > 0
 
 
-def test_parse_endpoint(tmp_path):
-    with open(TEST_PDF, "rb") as f:
+def test_parse_endpoint(tmp_path, sample_pdf_path):
+    with open(sample_pdf_path, "rb") as f:
         response = client.post(
             "/v1/documents/parse",
-            files={"file": ("test.pdf", f, "application/pdf")},
+            files={"file": (sample_pdf_path.name, f, "application/pdf")},
             data={"output_path": str(tmp_path)},
         )
     assert response.status_code == 200

@@ -1,10 +1,7 @@
-from pathlib import Path
 from typer.testing import CliRunner
 from trueparse.cli.main import app
 
 runner = CliRunner()
-DATA_DIR = Path(__file__).parent.parent / "Data" / "InputPDF"
-TEST_PDF = DATA_DIR / "Q226+Mgt+Report.pdf"
 
 
 def test_cli_inspect(sample_pdf_path):

@@ -1,5 +1,4 @@
 import time
-import shutil
 from pathlib import Path
 from fastapi.testclient import TestClient
 
@@ -7,9 +6,6 @@ from trueparse.api.routes import app
 from trueparse.workers.job_store import SQLiteJobStore
 from trueparse.workers.manager import JobManager
 from trueparse.core.config import ParseOptions
-
-DATA_DIR = Path(__file__).parent.parent / "Data" / "InputPDF"
-TEST_PDF = DATA_DIR / "Q226+Mgt+Report.pdf"
 
 client = TestClient(app)
 
@@ -44,13 +40,13 @@ def test_sqlite_job_store(tmp_path):
     assert len(batch_jobs) == 1
 
 
-def test_job_manager_execution(tmp_path):
+def test_job_manager_execution(tmp_path, sample_pdf_path):
     db_file = tmp_path / "manager_jobs.db"
     manager = JobManager(max_workers=2, db_path=str(db_file))
 
     out_dir = tmp_path / "output"
     options = ParseOptions(output_path=str(out_dir), max_pages=2)
-    job = manager.submit_job(file_path=TEST_PDF, options=options)
+    job = manager.submit_job(file_path=sample_pdf_path, options=options)
 
     # Wait for completion
     for _ in range(40):
@@ -65,14 +61,14 @@ def test_job_manager_execution(tmp_path):
     assert final_status.result["page_count"] == 2
 
 
-def test_api_parse_async_and_status(tmp_path):
-    assert TEST_PDF.exists()
+def test_api_parse_async_and_status(tmp_path, sample_pdf_path):
+    assert sample_pdf_path.exists()
     out_dir = str(tmp_path / "api_async_out")
 
-    with open(TEST_PDF, "rb") as f:
+    with open(sample_pdf_path, "rb") as f:
         resp = client.post(
             "/v1/documents/parse-async",
-            files={"file": (TEST_PDF.name, f, "application/pdf")},
+            files={"file": (sample_pdf_path.name, f, "application/pdf")},
             data={"output_path": out_dir, "max_pages": 1},
         )
     assert resp.status_code == 202
@@ -97,8 +93,8 @@ def test_api_parse_async_and_status(tmp_path):
     assert final_job["result"]["page_count"] == 1
 
 
-def test_api_batch_async(tmp_path):
-    assert TEST_PDF.exists()
+def test_api_batch_async(tmp_path, sample_pdf_path):
+    assert sample_pdf_path.exists()
     out_dir = str(tmp_path / "api_batch_out")
 
     # Create a distinct second test PDF
@@ -110,7 +106,7 @@ def test_api_batch_async(tmp_path):
     d2.save(str(pdf2))
     d2.close()
 
-    with open(TEST_PDF, "rb") as f1, open(pdf2, "rb") as f2:
+    with open(sample_pdf_path, "rb") as f1, open(pdf2, "rb") as f2:
         resp = client.post(
             "/v1/batches/parse-async",
             files=[

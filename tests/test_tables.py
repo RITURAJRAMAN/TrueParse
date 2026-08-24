@@ -1,10 +1,6 @@
-from pathlib import Path
 import pymupdf as fitz
 from trueparse.tables.native import NativeTableExtractor
 from trueparse.core.enums import ElementType
-
-DATA_DIR = Path(__file__).parent.parent / "Data" / "InputPDF"
-TEST_PDF = DATA_DIR / "Q226+Mgt+Report.pdf"
 
 
 def test_native_table_extraction(sample_pdf_path):
@@ -21,4 +17,5 @@ def test_native_table_extraction(sample_pdf_path):
             assert t.markdown is not None
             assert t.html is not None
             assert "<table>" in t.html
+    assert tables_found > 0, "Expected at least 1 table extracted from sample_pdf_path"
     doc.close()

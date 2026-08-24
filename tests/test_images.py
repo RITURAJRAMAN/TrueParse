@@ -1,15 +1,13 @@
-from pathlib import Path
 import pymupdf as fitz
 from trueparse.pdf.images import ImageExtractor
 from trueparse.core.enums import AssetType
-
-DATA_DIR = Path(__file__).parent.parent / "Data" / "InputPDF"
-TEST_PDF = DATA_DIR / "Q226+Mgt+Report.pdf"
 
 
 def test_embedded_image_extraction_and_deduplication(sample_pdf_path):
     doc = fitz.open(sample_pdf_path)
     assets_map = ImageExtractor.extract_embedded_images(doc)
+
+    assert len(assets_map) > 0, "Expected at least 1 extracted image from sample_pdf_path"
 
     # Check that every extracted asset has valid image bytes and valid SHA-256
     seen_hashes = set()
