@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.1] - 2026-08-25
+
+### Fixed
+- **Duplicate Logging**: Set `logger.propagate = False` and unified logger namespace under `"trueparse"` to prevent double-printed console output.
+- **Cross-Platform CLI Compatibility**: Replaced non-ASCII table glyphs with universal text formatting for legacy Windows console compatibility.
+
+### Added
+- **CLI Serve Command**: Added `trueparse serve` command to start the FastAPI server and Swagger docs directly from the terminal.
+- **Top-Level Package Exports**: Exposed `PDFInspector` and `DocumentInspection` at the root `trueparse` namespace for rapid forensics inspection.
+
+---
+
 ## [0.1.0] - 2026-08-25
 
 ### Added

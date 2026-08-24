@@ -29,7 +29,7 @@ setup_logging()
 
 app = FastAPI(
     title="TrueParse API",
-    version="0.1.0",
+    version="0.1.1",
     description="Local-first canonical PDF parsing and document understanding REST service.",
 )
 

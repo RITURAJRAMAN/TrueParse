@@ -55,7 +55,7 @@ class ParseOptions(BaseModel):
 class EngineConfig(BaseModel):
     default_output_root: str = "data/output"
     schema_version: str = "1.0"
-    engine_version: str = "0.1.0"
+    engine_version: str = "0.1.1"
     asset_dir_name: str = "assets"
     output_dir_name: str = "output"
     max_batch_size: int = 100
