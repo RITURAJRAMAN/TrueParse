@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pdf-intelligence-engine
+    container_name: trueparse-api
     ports:
       - "8000:8000"
     volumes:

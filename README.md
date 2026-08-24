@@ -189,7 +189,21 @@ curl "http://localhost:8000/v1/batches/{batch_id}"
 
 Host TrueParse locally with Docker without needing Python or local environment setup:
 
-### Using Docker Compose (Recommended)
+### Pull Pre-Built Image (GitHub Container Registry)
+
+```bash
+# 1. Pull the official pre-built multi-platform container image
+docker pull ghcr.io/riturajraman/trueparse:latest
+
+# 2. Run with mounted local output volume
+docker run -d \
+  -p 8000:8000 \
+  -v $(pwd)/data/output:/app/data/output \
+  --name trueparse-api \
+  ghcr.io/riturajraman/trueparse:latest
+```
+
+### Using Docker Compose (Build Locally)
 
 ```bash
 # Start container with persistent data volume mounts
@@ -198,7 +212,7 @@ docker compose up -d --build
 
 The service is available immediately at `http://localhost:8000/docs`. Parsed outputs will automatically be saved to `./data/output/` on your host machine.
 
-### Using Docker CLI
+### Using Docker CLI (Build Locally)
 
 ```bash
 # 1. Build Docker image
