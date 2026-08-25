@@ -9,7 +9,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 # The API reads its output root and worker mode from the environment at import
 # time, so both must be set before any test imports trueparse.api.routes.
-_TEST_OUTPUT_ROOT = Path(tempfile.mkdtemp(prefix="trueparse_tests_"))
+#
+# resolve() matters: on Windows, mkdtemp() can return an 8.3 short path
+# (C:\Users\RUNNER~1\...), while the engine resolves every path before use so
+# that containment checks are reliable. Without resolving here too, tests would
+# compare a short path against a long one.
+_TEST_OUTPUT_ROOT = Path(tempfile.mkdtemp(prefix="trueparse_tests_")).resolve()
 os.environ.setdefault("TRUEPARSE_OUTPUT_ROOT", str(_TEST_OUTPUT_ROOT))
 # Threads keep the suite fast and deterministic; the process pool is exercised
 # by its own dedicated test.
