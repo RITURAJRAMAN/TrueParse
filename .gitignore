@@ -116,3 +116,5 @@ temp/
 # ==========================================
 PUBLISHING.md
 
+# Local agent/editor settings
+.claude/

@@ -64,15 +64,27 @@ class RelationshipType(str, Enum):
     SECTION_CHILD = "section_child"
 
 
+class ChunkStrategy(str, Enum):
+    """How the RAG chunker splits a parsed document."""
+    SECTION = "section"      # one chunk per leaf section, never split
+    TOKEN = "token"          # fixed token budget with overlap, ignores sections
+    HYBRID = "hybrid"        # split on sections first, then token-budget within
+
+
 class ErrorCode(str, Enum):
     INVALID_PDF = "INVALID_PDF"
     PDF_PARSE_ERROR = "PDF_PARSE_ERROR"
     PDF_ENCRYPTED = "PDF_ENCRYPTED"
+    PDF_PASSWORD_REQUIRED = "PDF_PASSWORD_REQUIRED"
+    PDF_PASSWORD_INCORRECT = "PDF_PASSWORD_INCORRECT"
     PDF_RESOURCE_LIMIT = "PDF_RESOURCE_LIMIT"
     PAGE_RENDER_ERROR = "PAGE_RENDER_ERROR"
     OCR_ERROR = "OCR_ERROR"
+    OCR_UNAVAILABLE = "OCR_UNAVAILABLE"
     LAYOUT_ERROR = "LAYOUT_ERROR"
     TABLE_EXTRACTION_ERROR = "TABLE_EXTRACTION_ERROR"
     CHART_EXTRACTION_ERROR = "CHART_EXTRACTION_ERROR"
     ASSET_STORAGE_ERROR = "ASSET_STORAGE_ERROR"
     SERIALIZATION_ERROR = "SERIALIZATION_ERROR"
+    PATH_NOT_ALLOWED = "PATH_NOT_ALLOWED"
+    UPLOAD_TOO_LARGE = "UPLOAD_TOO_LARGE"

@@ -1,9 +1,8 @@
 from __future__ import annotations
-import io
+
 from pathlib import Path
-from typing import Optional
+
 import pymupdf as fitz  # PyMuPDF
-from PIL import Image
 
 from trueparse.core.models import BoundingBox
 

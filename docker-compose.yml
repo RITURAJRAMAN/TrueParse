@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Set to "false" for a smaller image without scanned-document OCR.
+        INSTALL_OCR: "true"
     container_name: trueparse-api
     ports:
       - "8000:8000"
@@ -11,4 +14,12 @@ services:
       - ./data/intake:/app/data/intake
     environment:
       - PYTHONUNBUFFERED=1
+      - TRUEPARSE_OUTPUT_ROOT=/app/data/output
+      # Uncomment to require an X-API-Key header on every parsing endpoint.
+      # Required if you expose this beyond localhost.
+      # - TRUEPARSE_API_KEY=change-me
+      # - TRUEPARSE_CORS_ORIGINS=https://your-app.example.com
+      # - TRUEPARSE_MAX_UPLOAD_MB=200
+      # - TRUEPARSE_WORKER_MODE=process
+      # - TRUEPARSE_MAX_WORKERS=4
     restart: unless-stopped

@@ -1,7 +1,7 @@
 from __future__ import annotations
+
 import logging
 import sys
-from typing import Optional
 
 
 def setup_logging(level: int = logging.INFO) -> logging.Logger:

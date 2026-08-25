@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trueparse"
-version = "0.1.1"
+version = "0.1.2"
 description = "High-performance document parsing and layout intelligence engine"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Text Processing :: General",
 ]
@@ -53,6 +55,13 @@ Issues = "https://github.com/RITURAJRAMAN/TrueParse/issues"
 Changelog = "https://github.com/RITURAJRAMAN/TrueParse/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+ocr = [
+    # Pure-wheel local OCR (no system packages), supporting Python 3.10-3.14.
+    # The legacy rapidocr-onnxruntime package is also detected if present.
+    "rapidocr>=3.0.0",
+    "onnxruntime>=1.17.0",
+    "numpy>=1.24.0",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
@@ -66,6 +75,9 @@ trueparse = "trueparse.cli.main:app"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+trueparse = ["py.typed"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["trueparse*"]
@@ -74,3 +86,39 @@ include = ["trueparse*"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4"]
+ignore = [
+    "E501",  # line length is enforced by the formatter, not the linter
+    "B008",  # FastAPI/Typer depend on calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/trueparse"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+# The codebase is not fully annotated yet; these stay off until it is.
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pymupdf.*", "fitz.*", "rapidocr.*", "rapidocr_onnxruntime.*"]
+ignore_missing_imports = true
+
+# numpy ships stubs using 3.12-only syntax, which trips the 3.10 target.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true

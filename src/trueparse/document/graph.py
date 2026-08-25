@@ -1,15 +1,13 @@
 from __future__ import annotations
-from typing import Sequence
-import re
 
-from trueparse.core.enums import RelationshipType, ElementType
+import re
+from collections.abc import Sequence
+
+from trueparse.core.enums import ElementType, RelationshipType
 from trueparse.core.models import (
     GenericElement,
     Relationship,
     Section,
-    TableElement,
-    FigureElement,
-    ChartElement,
 )
 
 
@@ -58,8 +56,8 @@ class DocumentGraphBuilder:
         for elem in all_elements_flat:
             # Check caption association
             caption_target_id = None
-            if hasattr(elem, "target_element_id") and getattr(elem, "target_element_id"):
-                caption_target_id = getattr(elem, "target_element_id")
+            if hasattr(elem, "target_element_id") and elem.target_element_id:
+                caption_target_id = elem.target_element_id
             elif "target_element_id" in elem.metadata:
                 caption_target_id = elem.metadata["target_element_id"]
 

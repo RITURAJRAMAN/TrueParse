@@ -1,4 +1,5 @@
-from typing import Any, Optional
+from typing import Any
+
 from trueparse.core.enums import ErrorCode
 
 
@@ -9,12 +10,12 @@ class PDFEngineError(Exception):
         self,
         code: ErrorCode,
         message: str,
-        request_id: Optional[str] = None,
-        document_id: Optional[str] = None,
-        page: Optional[int] = None,
-        element_id: Optional[str] = None,
+        request_id: str | None = None,
+        document_id: str | None = None,
+        page: int | None = None,
+        element_id: str | None = None,
         retryable: bool = False,
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.code = code

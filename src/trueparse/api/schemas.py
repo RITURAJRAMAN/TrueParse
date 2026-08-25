@@ -1,14 +1,26 @@
 from __future__ import annotations
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
-from trueparse.core.config import ParseOptions
+from trueparse.core.version import get_version
 from trueparse.pdf.inspector import DocumentInspection
 
 
 class HealthResponse(BaseModel):
     status: str = "ok"
-    version: str = "0.1.0"
+    version: str = Field(default_factory=get_version)
+    ocr_available: bool = Field(
+        default=False,
+        description="True when an OCR backend is installed and loadable",
+    )
+    auth_required: bool = Field(
+        default=False,
+        description="True when TRUEPARSE_API_KEY is set and X-API-Key is enforced",
+    )
+    output_root: str = Field(
+        default="",
+        description="Server-controlled directory all parsing output is written to",
+    )
 
 
 class ParseDocumentResponse(BaseModel):
@@ -22,10 +34,6 @@ class ParseDocumentResponse(BaseModel):
     assets_count: int
     quality_score: float
     warnings: list[str] = Field(default_factory=list)
-
-
-class InspectDocumentRequest(BaseModel):
-    file_path: str
 
 
 class InspectDocumentResponse(BaseModel):
@@ -49,12 +57,12 @@ class JobProgressInfo(BaseModel):
 
 class JobStatusResponse(BaseModel):
     job_id: str
-    batch_id: Optional[str] = None
+    batch_id: str | None = None
     source_file: str
     status: str  # "queued", "processing", "completed", "failed"
     progress: JobProgressInfo
-    result: Optional[dict] = None
-    error: Optional[str] = None
+    result: dict | None = None
+    error: str | None = None
     created_at: float
     updated_at: float
 

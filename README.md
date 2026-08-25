@@ -18,11 +18,13 @@
 ### Key Differentiators
 
 - **True Visual Asset Extraction**: Extracts actual raster image streams directly without lossy re-compression or replacing images with whole-page screenshots.
-- **SHA-256 Deduplication**: Hashes visual assets across pages, automatically eliminating duplicate logos, icons, and repeated decorative elements.
-- **Structural Table Reconstruction**: Parses ruled and unruled tables into structured 2D cell grids, row/column spans, bounding boxes, and pre-rendered Markdown/HTML tables.
-- **Multi-Column Reading Order**: Uses spatial geometry and column detection to restore natural human reading sequences across magazine layouts, multi-column reports, and sidebars.
-- **Document Graph & Heading Hierarchy**: Reconstructs heading trees (`title`, `h1`, `h2`, `h3`), section boundaries, parent-child containment, and caption-to-asset bindings.
-- **Multi-Worker Parallel Processing**: Built-in SQLite-backed background task manager supporting non-blocking asynchronous jobs, real-time page-by-page progress tracking, and multi-file batch execution.
+- **SHA-256 Deduplication**: Hashes every visual asset — raster *and* vector crop — across pages, so a logo repeated on 40 pages is stored once with 40 recorded occurrences.
+- **Structural Table Reconstruction**: Parses ruled and unruled tables into 2D cell grids with real row/column spans measured from the grid geometry, bounding boxes, and pre-rendered Markdown/HTML.
+- **N-Column Reading Order**: Discovers column boundaries from whitespace gutters rather than assuming a page midline, so three-column journals and off-centre sidebars read in the right order.
+- **Document Graph & Heading Hierarchy**: Reconstructs heading trees from a document-wide font ladder *and* numbering patterns (`3.1.2 Results`), section boundaries, parent-child containment, and caption-to-asset bindings.
+- **Retrieval-Ready Chunking**: Emits `chunks.jsonl` where every chunk carries its heading breadcrumb, page range, and bounding boxes — enough provenance to cite a RAG answer back to a rectangle on a page.
+- **Optional Local OCR**: Scanned pages are recognised via RapidOCR/ONNX — a pure wheel, no system packages — keeping the zero-cloud guarantee intact.
+- **Multi-Worker Parallel Processing**: SQLite-backed background task manager with process-based workers, real-time page-by-page progress, and multi-file batch execution.
 - **Zero Cloud Dependencies**: 100% local, privacy-preserving, and free of recurring per-page API costs.
 
 ---
@@ -46,6 +48,11 @@ Install TrueParse directly via `pip`:
 # Install from PyPI
 pip install trueparse
 
+# With local OCR support for scanned documents
+pip install "trueparse[ocr]"
+# On a minimal Linux image, OCR also needs OpenCV's system libraries:
+#   sudo apt-get install -y libgl1 libglib2.0-0
+
 # Or install latest directly from GitHub
 pip install git+https://github.com/RITURAJRAMAN/TrueParse.git
 ```
@@ -61,18 +68,40 @@ trueparse parse "path/to/document.pdf"
 # 2. Parse with custom output directory and page limits
 trueparse parse "path/to/document.pdf" -o "./results" --max-pages 5
 
-# 3. Parse with debug page rendering enabled
-trueparse parse "path/to/document.pdf" --debug
+# 3. Choose a parsing profile (fast | balanced | accurate | maximum_accuracy)
+trueparse parse "path/to/document.pdf" --profile accurate
 
-# 4. Asynchronous parsing with live progress spinner
+# 4. Emit RAG-ready chunks alongside the JSON
+trueparse parse "path/to/document.pdf" --chunks --chunk-size 512 --overlap 64
+
+# 5. Emit additional export formats
+trueparse parse "path/to/document.pdf" --html --text
+
+# 6. Force OCR on a scanned document (needs: pip install "trueparse[ocr]")
+trueparse parse "path/to/scan.pdf" --ocr always
+
+# 7. Unlock an encrypted PDF
+trueparse parse "path/to/protected.pdf" --password "s3cret"
+
+# 8. Re-chunk an already-parsed document without re-parsing the PDF
+trueparse chunk "data/output/doc_abc123/output/document.json" --chunk-size 256
+
+# 9. Asynchronous parsing with live progress spinner
 trueparse parse-async "path/to/document.pdf"
 
-# 5. Parallel batch parsing across all PDFs in a directory
-trueparse batch "path/to/pdf_folder"
+# 10. Parallel batch parsing across all PDFs in a directory
+trueparse batch "path/to/pdf_folder" --recursive
 
-# 6. Instant PDF forensics and structure inspection (no full parse)
+# 11. Instant PDF forensics and structure inspection (no full parse)
 trueparse inspect "path/to/document.pdf"
+
+# 12. Show the installed version
+trueparse --version
 ```
+
+Run `trueparse <command> --help` for the full flag list. Chunking flags
+(`--chunks`, `--chunk-strategy`, `--chunk-size`, `--overlap`) accept
+`section`, `token`, or `hybrid` for the strategy.
 
 ---
 
@@ -81,7 +110,7 @@ trueparse inspect "path/to/document.pdf"
 Import `trueparse` directly in your Python applications with top-level exports:
 
 ```python
-from trueparse import PDFParser, ParseOptions, ParsingProfile
+from trueparse import PDFParser, ParseOptions, ParsingProfile, OCRMode
 
 # 1. Configure parser options
 options = ParseOptions(
@@ -90,6 +119,9 @@ options = ParseOptions(
     extract_tables=True,
     extract_charts=True,
     extract_formulas=True,
+    ocr=OCRMode.AUTO,        # auto | always | never
+    password=None,           # for encrypted PDFs
+    emit_chunks=True,        # also write chunks.jsonl
     debug=False,
 )
 
@@ -117,6 +149,34 @@ for page in doc.pages:
         print(f"[{elem.type}] {bbox}: {elem.content[:60]}")
 ```
 
+### Retrieval Chunking
+
+Chunks carry the provenance needed to cite a retrieved answer back to its exact
+location in the source PDF:
+
+```python
+from trueparse import DocumentChunker, ChunkStrategy
+
+chunks = DocumentChunker.chunk(
+    doc,
+    strategy=ChunkStrategy.HYBRID,   # section | token | hybrid
+    max_tokens=512,
+    overlap_tokens=64,
+)
+
+for chunk in chunks:
+    print(f"[{chunk.id}] {' > '.join(chunk.section_path)}")
+    print(f"  pages {chunk.page_start}-{chunk.page_end} | ~{chunk.token_estimate} tokens")
+    print(f"  elements: {chunk.element_ids}")
+    print(f"  text: {chunk.text[:80]}...")
+
+# Serialize to newline-delimited JSON for your vector store
+jsonl = DocumentChunker.to_jsonl(chunks)
+```
+
+Tables are never split across chunks, and paragraphs larger than the budget are
+split on sentence boundaries.
+
 ---
 
 ## 3. FastAPI REST Service
@@ -143,14 +203,46 @@ uvicorn trueparse.api.routes:app --host 0.0.0.0 --port 8000 --reload
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/health` | Service health status and engine version |
+| `GET` | `/health` | Service health, engine version, and capability flags (`ocr_available`, `auth_required`, `output_root`) |
 | `POST` | `/v1/documents/parse` | Synchronous PDF parsing returning complete document JSON |
+| `POST` | `/v1/documents/inspect` | Fast forensics on an uploaded PDF without a full parse |
 | `POST` | `/v1/documents/parse-async` | Non-blocking async parse submission (returns `202 Accepted` & `job_id`) |
 | `GET` | `/v1/documents/jobs/{job_id}` | Live job status, real-time page-by-page progress %, and result paths |
 | `POST` | `/v1/batches/parse-async` | Multi-file batch upload (up to 100 PDFs) for parallel background execution |
 | `GET` | `/v1/batches/{batch_id}` | Aggregated progress metrics and document statuses for a batch |
-| `GET` | `/v1/documents/{document_id}` | Retrieve stored `document.json` by document ID |
+| `GET` | `/v1/documents/{document_id}/json` | Retrieve stored `document.json` by document ID |
+| `GET` | `/v1/documents/{document_id}/markdown` | Retrieve the Markdown export |
+| `GET` | `/v1/documents/{document_id}/html` | Retrieve the HTML export (if `emit_html` was set) |
+| `GET` | `/v1/documents/{document_id}/chunks` | Retrieve `chunks.jsonl` (if `emit_chunks` was set) |
 | `GET` | `/v1/documents/{document_id}/assets/{asset_id}` | Download raw extracted visual image/chart binary |
+
+### Server Configuration
+
+The service is configured by environment variables, **not** by request parameters.
+Output location in particular is server-controlled: a client cannot choose where
+files are written.
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `TRUEPARSE_OUTPUT_ROOT` | `data/output` | The only directory parsing artifacts may be written to. Every resolved path is checked against it. |
+| `TRUEPARSE_API_KEY` | *(unset)* | When set, every parsing endpoint requires a matching `X-API-Key` header. |
+| `TRUEPARSE_CORS_ORIGINS` | *(unset)* | Comma-separated allowed origins. CORS is disabled when unset. |
+| `TRUEPARSE_MAX_UPLOAD_MB` | `200` | Upload ceiling, enforced while streaming to disk. |
+| `TRUEPARSE_WORKER_MODE` | `process` | Background worker mode: `process` or `thread`. |
+| `TRUEPARSE_MAX_WORKERS` | *(cpu count, capped at 8)* | Background worker pool size. |
+
+> **Exposing the service beyond localhost?** Set `TRUEPARSE_API_KEY`. The API is
+> unauthenticated by default so that local use needs no configuration.
+
+```bash
+export TRUEPARSE_API_KEY="your-secret-key"
+export TRUEPARSE_OUTPUT_ROOT="/var/lib/trueparse/output"
+trueparse serve --host 0.0.0.0 --port 8000
+
+curl -X POST "http://localhost:8000/v1/documents/parse" \
+  -H "X-API-Key: your-secret-key" \
+  -F "file=@document.pdf"
+```
 
 #### Example cURL Requests
 
@@ -159,7 +251,15 @@ uvicorn trueparse.api.routes:app --host 0.0.0.0 --port 8000 --reload
 curl -X POST "http://localhost:8000/v1/documents/parse" \
   -F "file=@document.pdf" \
   -F "extract_images=true" \
-  -F "extract_tables=true"
+  -F "extract_tables=true" \
+  -F "emit_chunks=true" \
+  -F "profile=accurate"
+```
+
+**Forensic Inspection (upload, no full parse)**:
+```bash
+curl -X POST "http://localhost:8000/v1/documents/inspect" \
+  -F "file=@document.pdf"
 ```
 
 **Asynchronous Background Parse & Progress Polling**:
@@ -200,6 +300,25 @@ docker run -d \
   -p 8000:8000 \
   -v $(pwd)/data/output:/app/data/output \
   --name trueparse-api \
+  ghcr.io/riturajraman/trueparse:latest
+```
+
+The published image includes local OCR support (~1.35 GB). To build a slimmer
+image without it (~263 MB), at the cost of scanned-document support:
+
+```bash
+docker build --build-arg INSTALL_OCR=false -t trueparse-slim .
+```
+
+Check which variant you are running with `GET /health` — it reports
+`"ocr_available": true|false`.
+
+Set server configuration with `-e`, for example:
+
+```bash
+docker run -d -p 8000:8000 \
+  -e TRUEPARSE_API_KEY="your-secret-key" \
+  -v $(pwd)/data/output:/app/data/output \
   ghcr.io/riturajraman/trueparse:latest
 ```
 
@@ -244,7 +363,10 @@ data/output/{document_id}/
 │   └── formulas/             # Formula assets (asset_formula_0001.png)
 ├── output/
 │   ├── document.json         # Canonical structured document graph
-│   └── document.md           # Derived clean Markdown export
+│   ├── document.md           # Derived clean Markdown export
+│   ├── document.html         # Self-contained HTML export (--html)
+│   ├── document.txt          # Plain reading-order text (--text)
+│   └── chunks.jsonl          # Retrieval-ready chunks (--chunks)
 ├── intermediate/             # Intermediate processing artifacts
 └── debug/
     └── pages/                # Page render debug artifacts (optional)
@@ -259,8 +381,8 @@ The output `document.json` conforms to a strict, typed schema:
 ```json
 {
   "id": "doc_f76e021893a5",
-  "schema_version": "1.0",
-  "engine_version": "0.1.0",
+  "schema_version": "1.1",
+  "engine_version": "0.1.2",
   "source_file": "annual_report.pdf",
   "metadata": {
     "title": "Annual Financial Report",
@@ -324,10 +446,33 @@ The output `document.json` conforms to a strict, typed schema:
   ],
   "quality": {
     "overall_score": 0.97,
-    "text_density": 0.98,
-    "layout_confidence": 0.96,
+    "text_score": 0.99,
+    "layout_score": 0.96,
+    "table_score": 0.94,
+    "coverage_score": 0.41,
+    "ocr_pages": 0,
     "warnings": []
   }
+}
+```
+
+### Chunk Records (`chunks.jsonl`)
+
+```json
+{
+  "id": "chunk_00007",
+  "document_id": "doc_f76e021893a5",
+  "chunk_index": 7,
+  "text": "Revenue for the period grew 12% year over year...",
+  "token_estimate": 384,
+  "section_id": "sec_0003",
+  "section_path": ["Financial Review", "Revenue"],
+  "page_start": 12,
+  "page_end": 13,
+  "bboxes": [{ "page": 12, "bbox": [54.0, 220.0, 558.0, 410.0] }],
+  "element_ids": ["elem_p0012_0004", "elem_p0013_0001"],
+  "element_types": ["paragraph"],
+  "asset_ids": []
 }
 ```
 
@@ -337,12 +482,18 @@ The output `document.json` conforms to a strict, typed schema:
 
 TrueParse includes 4 configurable parsing profiles:
 
-| Profile | Focus | Best For |
-| :--- | :--- | :--- |
-| **`fast`** | Pure native extraction & spatial ordering | Text-heavy digital PDFs, high-throughput pipelines |
-| **`balanced`** *(Default)* | Native layout, table grids & conditional OCR | Standard enterprise documents, mixed layouts |
-| **`accurate`** | Enhanced table reconciliation & visual clustering | Financial statements, complex reports, legal filings |
-| **`maximum_accuracy`** | Full structural reconciliation & validation | Academic papers, multi-column scientific publications |
+Profiles are not labels — each resolves to concrete engine tuning applied on every page.
+
+| Profile | DPI | Table Strategies | Spans | Paragraph Merge | OCR | Best For |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **`fast`** | 96 | `lines` | No | No | Never | Text-heavy digital PDFs, high-throughput pipelines |
+| **`balanced`** *(Default)* | 150 | `lines` | Yes | Yes | Auto | Standard enterprise documents, mixed layouts |
+| **`accurate`** | 200 | `lines` + `text` | Yes | Yes | Auto | Financial statements, unruled tables, legal filings |
+| **`maximum_accuracy`** | 300 | `lines` + `text` | Yes | Yes | Auto (aggressive) | Academic papers, multi-column scientific publications |
+
+`OCR: Auto` means only pages detected as scanned are recognised, and only when the
+`ocr` extra is installed. Set `--ocr always` to force it, or `--ocr never` to disable.
+`render_dpi` overrides the profile's DPI when set explicitly.
 
 ---
 
@@ -351,14 +502,22 @@ TrueParse includes 4 configurable parsing profiles:
 Run the automated test suite with `pytest`:
 
 ```bash
-# Run all tests
+# Run all tests (149 tests, fully self-contained - fixtures are generated at runtime)
 pytest
 
-# Run tests with verbose output
-pytest -v
+# Run a specific area
+pytest tests/test_security.py     # path containment, auth, upload limits
+pytest tests/test_chunking.py     # RAG chunking
+pytest tests/test_layout.py       # reading order, headings, paragraph merging
+pytest tests/test_tables.py       # span reconstruction, cross-page merging
+pytest tests/test_queue.py        # SQLite queue and worker pool
 
-# Run queue concurrency tests
-pytest tests/test_queue.py
+# OCR tests skip automatically unless the extra is installed
+pip install "trueparse[ocr]" && pytest tests/test_ocr.py
+
+# Lint and type-check (both gated in CI)
+ruff check src tests
+mypy
 ```
 
 ---

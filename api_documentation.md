@@ -23,6 +23,33 @@ http://localhost:8000
 - API returns references to assets rather than embedding binary content.
 - Long-running parsing should eventually support asynchronous jobs.
 - API schema is versioned.
+- **Output location is server-controlled.** A request cannot choose where files
+  are written or read from; every resolved path is checked for containment.
+
+### Server configuration
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `TRUEPARSE_OUTPUT_ROOT` | `data/output` | The only directory artifacts may be written to or served from. |
+| `TRUEPARSE_API_KEY` | *(unset)* | When set, parsing endpoints require a matching `X-API-Key` header (401 otherwise). |
+| `TRUEPARSE_CORS_ORIGINS` | *(unset)* | Comma-separated allowed origins; CORS disabled when unset. |
+| `TRUEPARSE_MAX_UPLOAD_MB` | `200` | Upload ceiling, enforced mid-stream (413 `UPLOAD_TOO_LARGE`). |
+| `TRUEPARSE_WORKER_MODE` | `process` | Background worker mode: `process` or `thread`. |
+| `TRUEPARSE_MAX_WORKERS` | *(cpu count, capped at 8)* | Background worker pool size. |
+
+### Error codes and HTTP status
+
+Engine errors return `{"error": {"code": ..., "message": ..., ...}}`.
+
+| Code | Status |
+| :--- | :--- |
+| `INVALID_PDF` | 400 |
+| `PDF_PARSE_ERROR` | 422 |
+| `PDF_ENCRYPTED`, `PDF_PASSWORD_REQUIRED` | 422 |
+| `PDF_PASSWORD_INCORRECT` | 403 |
+| `PDF_RESOURCE_LIMIT`, `UPLOAD_TOO_LARGE` | 413 |
+| `PATH_NOT_ALLOWED` | 403 |
+| *(any other)* | 500 |
 
 ## 3. Health
 
@@ -33,7 +60,10 @@ Response:
 ```json
 {
   "status": "ok",
-  "version": "0.1.0"
+  "version": "0.1.2",
+  "ocr_available": true,
+  "auth_required": false,
+  "output_root": "/app/data/output"
 }
 ```
 
@@ -41,7 +71,7 @@ Response:
 
 ### POST `/v1/documents/parse`
 
-Accept either multipart upload or a local-path request in trusted local deployments.
+Accepts a multipart upload. Local-path requests are not supported: a client must never be able to name a server-side file.
 
 ### Multipart request
 
@@ -53,7 +83,6 @@ Fields:
 
 ```text
 file: PDF file (required)
-output_path: optional string (default: "data/output")
 profile: optional string (default: "balanced")
 debug: optional boolean (default: false)
 extract_images: optional boolean (default: true)
@@ -61,7 +90,20 @@ extract_tables: optional boolean (default: true)
 extract_charts: optional boolean (default: true)
 extract_formulas: optional boolean (default: true)
 ocr: optional string (default: "auto")
+password: optional string (for encrypted PDFs)
 max_pages: optional integer (default: null / 0 for all pages)
+emit_chunks: optional boolean (default: false)
+chunk_strategy: optional string (section | token | hybrid, default: "hybrid")
+chunk_max_tokens: optional integer (default: 512)
+chunk_overlap_tokens: optional integer (default: 64)
+emit_html: optional boolean (default: false)
+emit_text: optional boolean (default: false)
+```
+
+> `output_path` was removed in 0.1.2. The output directory is server-controlled
+> via the `TRUEPARSE_OUTPUT_ROOT` environment variable; see section 2.
+
+```text
 ```
 
 Recommended defaults:
@@ -130,7 +172,7 @@ For small documents:
   "request_id": "req_01",
   "document_id": "doc_01",
   "status": "completed",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "document_path": "data/output/doc_01/output/document.json",
   "asset_root": "data/output/doc_01/assets",
   "page_count": 12,
@@ -148,7 +190,6 @@ Enqueues a single PDF document for non-blocking background parsing across worker
 
 #### Multipart Request Fields:
 - `file`: PDF file (`required`)
-- `output_path`: string (default: `"data/output"`)
 - `profile`: string (`fast`, `balanced`, `accurate`, `maximum_accuracy`)
 - `extract_images`: boolean (default: `true`)
 - `extract_tables`: boolean (default: `true`)
@@ -293,6 +334,47 @@ Response:
 
 Returns the canonical document JSON.
 
+### GET `/v1/documents/{document_id}/markdown`
+
+Returns the Markdown export (`text/markdown`).
+
+### GET `/v1/documents/{document_id}/html`
+
+Returns the self-contained HTML export. Present only when the parse ran with
+`emit_html=true`; otherwise 404.
+
+### GET `/v1/documents/{document_id}/chunks`
+
+Returns `chunks.jsonl` (`application/x-ndjson`), one chunk per line. Present only
+when the parse ran with `emit_chunks=true`; otherwise 404.
+
+Chunk record:
+
+```json
+{
+  "id": "chunk_00007",
+  "document_id": "doc_f76e021893a5",
+  "chunk_index": 7,
+  "text": "Revenue for the period grew 12% year over year...",
+  "token_estimate": 384,
+  "section_id": "sec_0003",
+  "section_path": ["Financial Review", "Revenue"],
+  "page_start": 12,
+  "page_end": 13,
+  "bboxes": [{ "page": 12, "bbox": [54.0, 220.0, 558.0, 410.0] }],
+  "element_ids": ["elem_p0012_0004", "elem_p0013_0001"],
+  "element_types": ["paragraph"],
+  "asset_ids": []
+}
+```
+
+`section_path` is the heading breadcrumb from the document root down to the
+chunk. Tables are never split across chunks; prose longer than the token budget
+is split on sentence boundaries.
+
+`document_id` and `asset_id` path segments are sanitized before use, and the
+resolved file is re-checked for containment under `TRUEPARSE_OUTPUT_ROOT`.
+
 ## 10. Asset endpoint
 
 ### GET `/v1/documents/{document_id}/assets/{asset_id}`
@@ -323,7 +405,9 @@ This endpoint must not be used as the canonical asset endpoint.
 
 ### POST `/v1/documents/inspect`
 
-Runs PDF forensics without full document parsing.
+Runs PDF forensics without full document parsing. Takes a multipart upload
+(`file`, plus an optional `password`). The pre-0.1.2 JSON body carrying a
+server-side `file_path` has been removed.
 
 Response:
 
@@ -366,7 +450,16 @@ class ParseOptions(BaseModel):
     extract_formulas: bool = True
 
     ocr: Literal["auto", "always", "never"] = "auto"
+    password: str | None = None
 
+    emit_chunks: bool = False
+    chunk_strategy: Literal["section", "token", "hybrid"] = "hybrid"
+    chunk_max_tokens: int = 512
+    chunk_overlap_tokens: int = 64
+    emit_html: bool = False
+    emit_text: bool = False
+
+    # SDK only. The REST service ignores this and uses TRUEPARSE_OUTPUT_ROOT.
     output_path: str | None = None
 ```
 
@@ -410,7 +503,7 @@ class ParseOptions(BaseModel):
       "row": 0,
       "column": 0,
       "row_span": 1,
-      "col_span": 1,
+      "col_span": 2,
       "is_header": true,
       "text": "Year",
       "bbox": [72, 220, 180, 250],

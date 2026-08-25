@@ -1,20 +1,17 @@
-import pytest
+from trueparse.core.enums import AssetType, ElementType, RelationshipType, SourceMethod
 from trueparse.core.models import (
-    Document,
-    DocumentMetadata,
-    Page,
-    DocumentElement,
-    HeadingElement,
-    TableElement,
-    TableCell,
-    FigureElement,
-    BoundingBox,
-    SourceProvenance,
     Asset,
     AssetOccurrence,
+    BoundingBox,
+    Document,
+    DocumentMetadata,
+    HeadingElement,
+    Page,
     Relationship,
+    SourceProvenance,
+    TableCell,
+    TableElement,
 )
-from trueparse.core.enums import ElementType, AssetType, SourceMethod, RelationshipType
 from trueparse.serializer.json import JSONSerializer
 
 
@@ -111,3 +108,33 @@ def test_model_roundtrip_serialization():
     assert len(deserialized.pages) == 1
     assert len(deserialized.pages[0].elements) == 2
     assert deserialized.assets["img_123"].width == 400
+
+
+def test_version_matches_pyproject():
+    """Guards against pyproject, the metadata fallback, and the API drifting apart.
+
+    Comparing get_version() to itself passes even when the installed metadata is
+    stale, so the declared version is read straight from pyproject.toml.
+    """
+    import re
+    from pathlib import Path
+
+    from trueparse.core.version import _FALLBACK_VERSION, get_version
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    declared = re.search(r'^version\s*=\s*"([^"]+)"', pyproject.read_text(encoding="utf-8"), re.M)
+    assert declared, "version not found in pyproject.toml"
+
+    assert get_version() == declared.group(1)
+    assert _FALLBACK_VERSION == declared.group(1)
+
+
+def test_engine_version_is_stamped_into_output(tmp_path, sample_pdf_path):
+    from trueparse.core.config import ParseOptions
+    from trueparse.core.version import get_version
+    from trueparse.pipeline.runner import PDFParser
+
+    doc = PDFParser(options=ParseOptions(output_path=str(tmp_path), max_pages=1)).parse(
+        sample_pdf_path
+    )
+    assert doc.engine_version == get_version()

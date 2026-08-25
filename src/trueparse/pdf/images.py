@@ -1,10 +1,8 @@
 from __future__ import annotations
+
 import hashlib
-from typing import Optional
-from pathlib import Path
+
 import pymupdf as fitz  # PyMuPDF
-from PIL import Image
-import io
 
 from trueparse.core.enums import AssetType, SourceMethod
 from trueparse.core.models import Asset, AssetOccurrence, BoundingBox, SourceProvenance
@@ -126,7 +124,7 @@ class ImageExtractor:
 
         # Build public Asset models
         result: dict[str, tuple[ExtractedImageAsset, Asset]] = {}
-        for sha256, extracted in hash_to_extracted.items():
+        for extracted in hash_to_extracted.values():
             path_str = f"{relative_asset_dir}/{extracted.asset_id}.{extracted.ext}"
             asset_model = Asset(
                 id=extracted.asset_id,

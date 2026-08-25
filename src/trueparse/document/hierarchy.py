@@ -1,17 +1,14 @@
 from __future__ import annotations
-from typing import Sequence
-import re
 
 from trueparse.core.enums import ElementType
 from trueparse.core.models import (
     CaptionElement,
-    DocumentElement,
+    ChartElement,
+    FigureElement,
     GenericElement,
     HeadingElement,
     Section,
     TableElement,
-    FigureElement,
-    ChartElement,
 )
 
 
@@ -24,7 +21,7 @@ class HierarchyEngine:
         pages_elements: list[list[GenericElement]],
     ) -> tuple[list[Section], list[list[GenericElement]]]:
         sections: list[Section] = []
-        current_section: Optional[Section] = None
+        current_section: Section | None = None
         section_counter = 1
 
         # Create a default document root section
@@ -38,27 +35,36 @@ class HierarchyEngine:
         sections.append(root_section)
         current_section = root_section
 
+        # Stack of open ancestors, deepest last. A new heading pops every open
+        # section at or below its own level, so a level-2 heading following
+        # another level-2 becomes its sibling rather than its child.
+        open_sections: list[Section] = [root_section]
+
         updated_pages_elements: list[list[GenericElement]] = []
 
         for page_elements in pages_elements:
             updated_page: list[GenericElement] = []
-            
+
             # Identify captions and associate with nearby tables/figures/charts
-            for idx, elem in enumerate(page_elements):
+            for elem in page_elements:
                 # Check for headings
                 if isinstance(elem, HeadingElement) or elem.type in (ElementType.TITLE, ElementType.SECTION_HEADER):
                     sec_id = f"sec_{section_counter:04d}"
                     section_counter += 1
                     level = elem.level if isinstance(elem, HeadingElement) else (1 if elem.type == ElementType.TITLE else 2)
-                    
+
+                    while len(open_sections) > 1 and open_sections[-1].level >= level:
+                        open_sections.pop()
+
                     new_section = Section(
                         id=sec_id,
                         title=elem.content[:100],
                         level=level,
-                        parent_id=root_section.id if level == 1 else (current_section.id if current_section else root_section.id),
+                        parent_id=open_sections[-1].id,
                         element_ids=[elem.id],
                     )
                     sections.append(new_section)
+                    open_sections.append(new_section)
                     current_section = new_section
                     if isinstance(elem, HeadingElement):
                         elem.section_id = sec_id

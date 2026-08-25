@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Any, Optional
+
+from typing import Any
+
 import pymupdf as fitz  # PyMuPDF
 from pydantic import BaseModel, Field
 
@@ -11,7 +13,7 @@ class DrawingPath(BaseModel):
     item_count: int
     color: Any = None
     fill: Any = None
-    width: Optional[float] = 1.0
+    width: float | None = 1.0
 
 
 class PageDrawings(BaseModel):

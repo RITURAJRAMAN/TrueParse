@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 import hashlib
 from pathlib import Path
-from typing import Any, Optional
+
 import pymupdf as fitz  # PyMuPDF
 from pydantic import BaseModel, Field
 
-from trueparse.core.errors import PDFEngineError
 from trueparse.core.enums import ErrorCode
+from trueparse.core.errors import PDFEngineError
 from trueparse.core.models import DocumentMetadata
 
 
@@ -50,7 +51,12 @@ class PDFInspector:
         return h.hexdigest()
 
     @classmethod
-    def inspect(cls, file_path: str | Path, max_file_size_mb: int = 200) -> DocumentInspection:
+    def inspect(
+        cls,
+        file_path: str | Path,
+        max_file_size_mb: int = 200,
+        password: str | None = None,
+    ) -> DocumentInspection:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
             raise PDFEngineError(
@@ -74,15 +80,27 @@ class PDFInspector:
             raise PDFEngineError(
                 code=ErrorCode.INVALID_PDF,
                 message=f"Failed to open PDF: {e}",
-            )
+            ) from e
 
-        if doc.is_encrypted:
-            doc.close()
-            raise PDFEngineError(
-                code=ErrorCode.PDF_ENCRYPTED,
-                message="PDF is encrypted and requires password.",
-                document_id=doc_id,
-            )
+        was_encrypted = bool(doc.is_encrypted)
+        if was_encrypted:
+            # An empty owner password unlocks many "protected" PDFs that only
+            # restrict printing, so try that before demanding one from the user.
+            if not doc.authenticate(password or ""):
+                doc.close()
+                raise PDFEngineError(
+                    code=(
+                        ErrorCode.PDF_PASSWORD_INCORRECT
+                        if password
+                        else ErrorCode.PDF_PASSWORD_REQUIRED
+                    ),
+                    message=(
+                        "Incorrect password for encrypted PDF."
+                        if password
+                        else "PDF is encrypted. Supply a password via ParseOptions(password=...)."
+                    ),
+                    document_id=doc_id,
+                )
 
         raw_meta = doc.metadata or {}
         meta = DocumentMetadata(
@@ -146,7 +164,7 @@ class PDFInspector:
             file_size_bytes=file_size,
             sha256=sha256,
             page_count=len(pages_forensics),
-            is_encrypted=False,
+            is_encrypted=was_encrypted,
             metadata=meta,
             pages=pages_forensics,
             overall_native_text=overall_native_text,

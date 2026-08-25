@@ -1,17 +1,17 @@
 from __future__ import annotations
-import sqlite3
+
 import json
+import sqlite3
 import time
-import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Any
-from dataclasses import dataclass, asdict
+from typing import Any
 
 
 @dataclass
 class JobRecord:
     job_id: str
-    batch_id: Optional[str]
+    batch_id: str | None
     source_file: str
     file_path: str
     status: str  # "queued", "processing", "completed", "failed"
@@ -19,8 +19,8 @@ class JobRecord:
     total_pages: int
     percent: float
     stage: str
-    result: Optional[dict[str, Any]]
-    error: Optional[str]
+    result: dict[str, Any] | None
+    error: str | None
     created_at: float
     updated_at: float
 
@@ -36,6 +36,15 @@ class SQLiteJobStore:
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path), timeout=30.0)
         conn.row_factory = sqlite3.Row
+        # WAL lets worker processes write progress while the API server reads
+        # status concurrently, instead of serialising on a database-level lock.
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.DatabaseError:
+            # A filesystem without shared-memory support (some network mounts)
+            # rejects WAL; the default rollback journal still works.
+            pass
         return conn
 
     def _init_db(self) -> None:
@@ -66,7 +75,7 @@ class SQLiteJobStore:
         job_id: str,
         source_file: str,
         file_path: str,
-        batch_id: Optional[str] = None,
+        batch_id: str | None = None,
         total_pages: int = 0,
     ) -> JobRecord:
         now = time.time()
@@ -172,7 +181,33 @@ class SQLiteJobStore:
             )
             conn.commit()
 
-    def get_job(self, job_id: str) -> Optional[JobRecord]:
+    def fail_stale_jobs(self, reason: str) -> int:
+        """Fails jobs left ``queued`` or ``processing`` by a previous run.
+
+        Job state lives in SQLite but the work itself lives in a worker pool
+        that dies with the process. Without this, a restart leaves jobs stuck
+        at "processing" forever with nothing driving them.
+
+        Returns:
+            The number of jobs transitioned to ``failed``.
+        """
+        now = time.time()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE jobs SET
+                    status = 'failed',
+                    stage = 'failed',
+                    error = ?,
+                    updated_at = ?
+                WHERE status IN ('queued', 'processing')
+                """,
+                (reason, now),
+            )
+            conn.commit()
+            return cursor.rowcount or 0
+
+    def get_job(self, job_id: str) -> JobRecord | None:
         with self._get_connection() as conn:
             row = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
             if not row:

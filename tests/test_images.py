@@ -1,6 +1,7 @@
 import pymupdf as fitz
-from trueparse.pdf.images import ImageExtractor
+
 from trueparse.core.enums import AssetType
+from trueparse.pdf.images import ImageExtractor
 
 
 def test_embedded_image_extraction_and_deduplication(sample_pdf_path):
@@ -11,7 +12,7 @@ def test_embedded_image_extraction_and_deduplication(sample_pdf_path):
 
     # Check that every extracted asset has valid image bytes and valid SHA-256
     seen_hashes = set()
-    for asset_id, (extracted, asset_model) in assets_map.items():
+    for extracted, asset_model in assets_map.values():
         assert extracted.image_bytes is not None
         assert len(extracted.image_bytes) > 0
         assert extracted.sha256 not in seen_hashes  # Must be strictly deduplicated
