@@ -8,18 +8,21 @@ services:
         INSTALL_OCR: "true"
     container_name: trueparse-api
     ports:
-      - "8000:8000"
-    volumes:
-      - ./data/output:/app/data/output
-      - ./data/intake:/app/data/intake
+      - "127.0.0.1:8000:8000"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=268435456,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - PYTHONUNBUFFERED=1
-      - TRUEPARSE_OUTPUT_ROOT=/app/data/output
       # Uncomment to require an X-API-Key header on every parsing endpoint.
       # Required if you expose this beyond localhost.
       # - TRUEPARSE_API_KEY=change-me
       # - TRUEPARSE_CORS_ORIGINS=https://your-app.example.com
       # - TRUEPARSE_MAX_UPLOAD_MB=200
-      # - TRUEPARSE_WORKER_MODE=process
-      # - TRUEPARSE_MAX_WORKERS=4
+      # - TRUEPARSE_TIMEOUT_SECONDS=120
     restart: unless-stopped

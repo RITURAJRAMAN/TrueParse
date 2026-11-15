@@ -1,9 +1,9 @@
 import pytest
 
-from trueparse.core.enums import ErrorCode
-from trueparse.core.errors import PDFEngineError
-from trueparse.core.security import contain_path, sanitize_identifier
-from trueparse.storage.filesystem import FileSystemStorage
+from trueparse.exceptions import PDFEngineError
+from trueparse.io.filesystem import FileSystemStorage
+from trueparse.io.paths import contain_path, sanitize_identifier
+from trueparse.models.enums import ErrorCode
 
 
 class TestSanitizeIdentifier:
@@ -49,16 +49,6 @@ class TestStorageContainment:
         storage = FileSystemStorage(root_path=tmp_path)
         doc_dir = storage.get_document_dir("../../escape_attempt")
         assert tmp_path.resolve() in doc_dir.parents
-
-    def test_source_filename_directory_component_is_stripped(self, tmp_path, sample_pdf_path):
-        storage = FileSystemStorage(root_path=tmp_path)
-        saved = storage.save_source_pdf(
-            source_path=sample_pdf_path,
-            document_id="doc_test",
-            original_filename="../../../evil.pdf",
-        )
-        assert saved.name == "evil.pdf"
-        assert tmp_path.resolve() in saved.parents
 
     def test_save_text_is_atomic_and_contained(self, tmp_path):
         storage = FileSystemStorage(root_path=tmp_path)

@@ -1,7 +1,7 @@
 import pymupdf as fitz
 
-from trueparse.core.enums import AssetType
-from trueparse.pdf.images import ImageExtractor
+from trueparse.extraction.pdf.images import ImageExtractor
+from trueparse.models.enums import AssetType
 
 
 def test_embedded_image_extraction_and_deduplication(sample_pdf_path):

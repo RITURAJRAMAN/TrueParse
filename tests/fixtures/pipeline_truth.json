@@ -1,0 +1,13 @@
+{
+  "invoice": {
+    "columns": 2,
+    "rows": 3,
+    "cells": [["Metric", "Value"], ["Revenue", "$100M"], ["Net Margin", "24.5%"]],
+    "required_text": ["Executive Summary", "This is a test paragraph describing TrueParse performance metrics.", "Conclusion & Recommendations"]
+  },
+  "mixed_scan": {
+    "native": "Native contract reference ABC123.",
+    "scanned": "SCANNED INVOICE TOTAL 1234",
+    "footer": "Native appendix must stay readable."
+  }
+}

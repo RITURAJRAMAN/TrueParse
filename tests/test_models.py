@@ -1,18 +1,8 @@
-from trueparse.core.enums import AssetType, ElementType, RelationshipType, SourceMethod
-from trueparse.core.models import (
-    Asset,
-    AssetOccurrence,
-    BoundingBox,
-    Document,
-    DocumentMetadata,
-    HeadingElement,
-    Page,
-    Relationship,
-    SourceProvenance,
-    TableCell,
-    TableElement,
-)
-from trueparse.serializer.json import JSONSerializer
+from trueparse.models.assets import Asset, AssetOccurrence
+from trueparse.models.document import Document, DocumentMetadata, Page, Relationship
+from trueparse.models.elements import HeadingElement, SourceProvenance, TableCell, TableElement
+from trueparse.models.enums import AssetType, ElementType, RelationshipType, SourceMethod
+from trueparse.models.geometry import BoundingBox
 
 
 def test_model_roundtrip_serialization():
@@ -100,8 +90,8 @@ def test_model_roundtrip_serialization():
     )
 
     # Test JSON serialization and deserialization
-    json_str = JSONSerializer.serialize(doc)
-    deserialized = JSONSerializer.deserialize(json_str)
+    json_str = doc.model_dump_json()
+    deserialized = Document.model_validate_json(json_str)
 
     assert deserialized.id == "doc_test"
     assert deserialized.metadata.title == "Sample Report"
@@ -119,7 +109,7 @@ def test_version_matches_pyproject():
     import re
     from pathlib import Path
 
-    from trueparse.core.version import _FALLBACK_VERSION, get_version
+    from trueparse._version import _FALLBACK_VERSION, get_version
 
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     declared = re.search(r'^version\s*=\s*"([^"]+)"', pyproject.read_text(encoding="utf-8"), re.M)
@@ -130,11 +120,9 @@ def test_version_matches_pyproject():
 
 
 def test_engine_version_is_stamped_into_output(tmp_path, sample_pdf_path):
-    from trueparse.core.config import ParseOptions
-    from trueparse.core.version import get_version
+    from trueparse._version import get_version
+    from trueparse.config.options import ParseOptions
     from trueparse.pipeline.runner import PDFParser
 
-    doc = PDFParser(options=ParseOptions(output_path=str(tmp_path), max_pages=1)).parse(
-        sample_pdf_path
-    )
+    doc = PDFParser(options=ParseOptions(output_path=str(tmp_path), max_pages=1)).parse(sample_pdf_path)
     assert doc.engine_version == get_version()

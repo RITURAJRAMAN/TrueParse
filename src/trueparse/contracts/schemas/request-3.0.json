@@ -1,0 +1,268 @@
+{
+  "$defs": {
+    "ChunkStrategy": {
+      "description": "How the RAG chunker splits a parsed document.",
+      "enum": [
+        "section",
+        "token",
+        "hybrid"
+      ],
+      "title": "ChunkStrategy",
+      "type": "string"
+    },
+    "ImageInclusionMode": {
+      "enum": [
+        "none",
+        "path",
+        "base64"
+      ],
+      "title": "ImageInclusionMode",
+      "type": "string"
+    },
+    "JsonProjection": {
+      "additionalProperties": false,
+      "description": "JSON-only field selection. Visual delivery is controlled by ``images``.",
+      "properties": {
+        "coordinates": {
+          "default": false,
+          "title": "Coordinates",
+          "type": "boolean"
+        },
+        "metadata": {
+          "default": true,
+          "title": "Metadata",
+          "type": "boolean"
+        },
+        "hierarchy": {
+          "default": true,
+          "title": "Hierarchy",
+          "type": "boolean"
+        },
+        "quality_scores": {
+          "default": false,
+          "title": "Quality Scores",
+          "type": "boolean"
+        },
+        "relationships": {
+          "default": true,
+          "title": "Relationships",
+          "type": "boolean"
+        },
+        "text_only": {
+          "default": false,
+          "title": "Text Only",
+          "type": "boolean"
+        },
+        "tables": {
+          "$ref": "#/$defs/TableProjection"
+        }
+      },
+      "title": "JsonProjection",
+      "type": "object"
+    },
+    "OCRMode": {
+      "enum": [
+        "auto",
+        "always",
+        "never"
+      ],
+      "title": "OCRMode",
+      "type": "string"
+    },
+    "OutputFormat": {
+      "enum": [
+        "json",
+        "markdown",
+        "html",
+        "text",
+        "chunks"
+      ],
+      "title": "OutputFormat",
+      "type": "string"
+    },
+    "ParsingProfile": {
+      "enum": [
+        "fast",
+        "balanced",
+        "accurate",
+        "maximum_accuracy"
+      ],
+      "title": "ParsingProfile",
+      "type": "string"
+    },
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_render_pixels": {
+          "default": 25000000,
+          "exclusiveMinimum": 0,
+          "title": "Max Render Pixels",
+          "type": "integer"
+        },
+        "max_total_render_pixels": {
+          "default": 100000000,
+          "exclusiveMinimum": 0,
+          "title": "Max Total Render Pixels",
+          "type": "integer"
+        },
+        "max_ocr_pages": {
+          "default": 200,
+          "exclusiveMinimum": 0,
+          "title": "Max Ocr Pages",
+          "type": "integer"
+        },
+        "max_asset_bytes": {
+          "default": 67108864,
+          "exclusiveMinimum": 0,
+          "title": "Max Asset Bytes",
+          "type": "integer"
+        },
+        "max_response_bytes": {
+          "default": 134217728,
+          "exclusiveMinimum": 0,
+          "title": "Max Response Bytes",
+          "type": "integer"
+        },
+        "max_nodes": {
+          "default": 200000,
+          "exclusiveMinimum": 0,
+          "title": "Max Nodes",
+          "type": "integer"
+        },
+        "max_table_cells": {
+          "default": 250000,
+          "exclusiveMinimum": 0,
+          "title": "Max Table Cells",
+          "type": "integer"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    },
+    "TableProjection": {
+      "additionalProperties": false,
+      "properties": {
+        "grid": {
+          "default": true,
+          "title": "Grid",
+          "type": "boolean"
+        },
+        "markdown": {
+          "default": true,
+          "title": "Markdown",
+          "type": "boolean"
+        },
+        "html": {
+          "default": false,
+          "title": "Html",
+          "type": "boolean"
+        }
+      },
+      "title": "TableProjection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One request contract used by the SDK, HTTP service and CLI.",
+  "properties": {
+    "strict": {
+      "default": false,
+      "title": "Strict",
+      "type": "boolean"
+    },
+    "limits": {
+      "$ref": "#/$defs/ResourceLimits"
+    },
+    "formats": {
+      "items": {
+        "$ref": "#/$defs/OutputFormat"
+      },
+      "minItems": 1,
+      "title": "Formats",
+      "type": "array"
+    },
+    "images": {
+      "$ref": "#/$defs/ImageInclusionMode",
+      "default": "none"
+    },
+    "profile": {
+      "$ref": "#/$defs/ParsingProfile",
+      "default": "balanced"
+    },
+    "ocr": {
+      "$ref": "#/$defs/OCRMode",
+      "default": "auto"
+    },
+    "password": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Password"
+    },
+    "max_pages": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Pages"
+    },
+    "timeout_seconds": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Timeout Seconds"
+    },
+    "chunk_strategy": {
+      "$ref": "#/$defs/ChunkStrategy",
+      "default": "hybrid"
+    },
+    "chunk_size": {
+      "default": 512,
+      "minimum": 32,
+      "title": "Chunk Size",
+      "type": "integer"
+    },
+    "chunk_overlap": {
+      "default": 64,
+      "minimum": 0,
+      "title": "Chunk Overlap",
+      "type": "integer"
+    },
+    "chunk_tokenizer": {
+      "default": "approximate",
+      "enum": [
+        "approximate",
+        "cl100k_base",
+        "o200k_base"
+      ],
+      "title": "Chunk Tokenizer",
+      "type": "string"
+    },
+    "json_options": {
+      "$ref": "#/$defs/JsonProjection"
+    }
+  },
+  "title": "ParseRequest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trueparse:schema:3.0:request"
+}

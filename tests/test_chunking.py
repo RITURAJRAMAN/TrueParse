@@ -1,18 +1,14 @@
 import json
 
-from trueparse.chunking.chunker import DocumentChunker, estimate_tokens
-from trueparse.core.config import ParseOptions
-from trueparse.core.enums import ChunkStrategy, ElementType
-from trueparse.core.models import (
-    BoundingBox,
-    Document,
-    DocumentElement,
-    DocumentMetadata,
-    Page,
-    Section,
-    TableCell,
-    TableElement,
-)
+from trueparse.chunking.chunker import DocumentChunker
+from trueparse.chunking.tokenization import approximate_tokens as estimate_tokens
+from trueparse.config.options import ParseOptions
+from trueparse.contracts.response import ParsedOutputData
+from trueparse.exporters.files import serialize_outputs
+from trueparse.models.document import Document, DocumentMetadata, Page, Section
+from trueparse.models.elements import DocumentElement, TableCell, TableElement
+from trueparse.models.enums import ChunkStrategy, ElementType, OutputFormat
+from trueparse.models.geometry import BoundingBox
 from trueparse.pipeline.runner import PDFParser
 
 
@@ -57,10 +53,10 @@ def _document_with_sections() -> Document:
         pages=[Page(page_number=1, width=612.0, height=792.0, elements=[intro, background, table])],
         sections=[
             Section(id="sec_root", title="Document Root", level=0, parent_id=None, element_ids=[]),
-            Section(id="sec_1", title="Introduction", level=1, parent_id="sec_root",
-                    element_ids=["elem_1"]),
-            Section(id="sec_2", title="Background", level=2, parent_id="sec_1",
-                    element_ids=["elem_2", "table_1"]),
+            Section(id="sec_1", title="Introduction", level=1, parent_id="sec_root", element_ids=["elem_1"]),
+            Section(
+                id="sec_2", title="Background", level=2, parent_id="sec_1", element_ids=["elem_2", "table_1"]
+            ),
         ],
     )
 
@@ -74,11 +70,20 @@ class TestEstimateTokens:
 
 
 class TestChunker:
+    def test_token_strategy_crosses_sections_while_hybrid_preserves_them(self):
+        document = _document_with_sections()
+        token = DocumentChunker.chunk(document, strategy=ChunkStrategy.TOKEN)
+        hybrid = DocumentChunker.chunk(document, strategy=ChunkStrategy.HYBRID)
+        assert token[0].element_ids == ["elem_1", "elem_2"]
+        assert token[0].section_path == []
+        assert hybrid[0].element_ids == ["elem_1"]
+
     def test_produces_chunks_with_sequential_ids(self):
         chunks = DocumentChunker.chunk(_document_with_sections())
         assert chunks
         assert [c.chunk_index for c in chunks] == list(range(len(chunks)))
-        assert [c.id for c in chunks] == [f"chunk_{i:05d}" for i in range(len(chunks))]
+        assert all(c.id.startswith(f"doc_chunk_test:chunk:{i:05d}:") for i, c in enumerate(chunks))
+        assert len({c.id for c in chunks}) == len(chunks)
 
     def test_section_path_is_a_breadcrumb_from_the_root(self):
         chunks = DocumentChunker.chunk(_document_with_sections())
@@ -108,21 +113,17 @@ class TestChunker:
 
     def test_token_budget_is_respected_for_prose(self):
         long_doc = _document_with_sections()
-        long_doc.pages[0].elements = [
-            _paragraph(f"elem_{i}", "word " * 200, order=i) for i in range(1, 6)
-        ]
+        long_doc.pages[0].elements = [_paragraph(f"elem_{i}", "word " * 200, order=i) for i in range(1, 6)]
         long_doc.sections = [
-            Section(id="sec_root", title="Document Root", level=0, element_ids=[
-                f"elem_{i}" for i in range(1, 6)
-            ]),
+            Section(
+                id="sec_root", title="Document Root", level=0, element_ids=[f"elem_{i}" for i in range(1, 6)]
+            ),
         ]
         chunks = DocumentChunker.chunk(long_doc, max_tokens=128, overlap_tokens=16)
         assert len(chunks) > 1
         # Oversize elements are split internally, so no chunk may exceed the
         # budget by more than the token estimator's own rounding.
-        assert all(c.token_estimate <= 128 + 8 for c in chunks), [
-            c.token_estimate for c in chunks
-        ]
+        assert all(c.token_estimate <= 128 + 8 for c in chunks), [c.token_estimate for c in chunks]
 
     def test_oversize_single_element_is_split_but_keeps_provenance(self):
         doc = _document_with_sections()
@@ -142,7 +143,7 @@ class TestChunker:
         hybrid_chunks = DocumentChunker.chunk(doc, strategy=ChunkStrategy.HYBRID, max_tokens=16)
         assert len(section_chunks) <= len(hybrid_chunks)
 
-    def test_headers_and_footers_are_excluded(self):
+    def test_headers_and_footers_are_preserved(self):
         doc = _document_with_sections()
         doc.pages[0].elements.append(
             DocumentElement(
@@ -155,7 +156,7 @@ class TestChunker:
             )
         )
         chunks = DocumentChunker.chunk(doc)
-        assert not any("Confidential" in c.text for c in chunks)
+        assert any("Confidential" in c.text for c in chunks)
 
     def test_overlap_never_exceeds_the_budget(self):
         doc = _document_with_sections()
@@ -164,7 +165,9 @@ class TestChunker:
 
     def test_jsonl_round_trips(self):
         chunks = DocumentChunker.chunk(_document_with_sections())
-        lines = DocumentChunker.to_jsonl(chunks).split("\n")
+        output = ParsedOutputData(chunks=[chunk.model_dump(mode="json") for chunk in chunks])
+        _, encoded = next(serialize_outputs(output, [OutputFormat.CHUNKS]))
+        lines = encoded.splitlines()
         assert len(lines) == len(chunks)
         for line, chunk in zip(lines, chunks, strict=True):
             assert json.loads(line)["id"] == chunk.id
@@ -172,10 +175,18 @@ class TestChunker:
 
 class TestChunkEmission:
     def test_pipeline_writes_chunks_jsonl(self, tmp_path, sample_pdf_path):
-        options = ParseOptions(output_path=str(tmp_path), emit_chunks=True, max_pages=3)
+        from trueparse.config.options import OutputConfig
+
+        options = ParseOptions(
+            output_path=str(tmp_path),
+            output_config=OutputConfig(formats=["json", "markdown", "chunks"]),
+            max_pages=3,
+        )
         doc = PDFParser(options=options).parse(sample_pdf_path)
 
-        chunks_file = tmp_path / doc.id / "output" / "chunks.jsonl"
+        chunks_file = tmp_path / doc.id / "sample_document.chunks.jsonl"
+        if not chunks_file.exists():
+            chunks_file = tmp_path / doc.id / "sample_document.chunks.jsonl"
         assert chunks_file.exists()
 
         records = [json.loads(line) for line in chunks_file.read_text(encoding="utf-8").splitlines() if line]
@@ -186,4 +197,5 @@ class TestChunkEmission:
     def test_chunks_not_written_unless_requested(self, tmp_path, sample_pdf_path):
         options = ParseOptions(output_path=str(tmp_path), max_pages=1)
         doc = PDFParser(options=options).parse(sample_pdf_path)
-        assert not (tmp_path / doc.id / "output" / "chunks.jsonl").exists()
+        assert not (tmp_path / doc.id / "sample_document.chunks.jsonl").exists()
+        assert not (tmp_path / doc.id / "sample_document.chunks.jsonl").exists()

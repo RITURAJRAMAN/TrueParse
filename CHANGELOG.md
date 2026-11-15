@@ -1,20 +1,45 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
----
-
 ## [Unreleased]
 
-### Planned
-- Local Vision-Language Model (VLM) chart annotation support.
-- Specialized formula-to-LaTeX converter plugin.
-- Accuracy regression corpus with text-recall and table-F1 metrics.
+- Preserve header-only tables in retrieval chunks and structured remote error
+  context in the HTTP client; reuse spanning-table HTML across combined exports.
+- Reorganized source by responsibility: extraction, processing, exporters,
+  models/contracts, I/O, runtime and SDK adapters. Split mixed-purpose SDK,
+  table, native-text, API and pipeline modules; retained public root imports.
+- Moved the ASGI entry point to `trueparse.api.app:app` and updated integrations.
+- Independently reviewed accuracy corpus and platform/container release verification.
 
----
+## [0.2.0] - Developer preview
+
+- Replaced the public integration surface with parse/aparse, a shared strict
+  ParseRequest, ParseResult, ParseError, and an optional TrueParseClient.
+- Made in-memory Markdown the default; file exports are explicit and refuse
+  nonempty destinations.
+- Replaced the HTTP service with one stateless /v1/parse endpoint, bounded memory
+  uploads, isolated parsing processes and hard deadlines.
+- Simplified the CLI to parse, inspect and serve. Removed built-in durable queues,
+  job database and artifact path APIs from the product surface.
+- Separated global visual delivery from JSON-only projection controls.
+- Added installation-wheel checks and public developer-journey tests.
+- Isolated page/stage failures, added regional OCR recovery and spatial text
+  deduplication, and tightened table continuation checks.
+- Added stage timings, demand-driven rendering, precise chunk source spans,
+  document-scoped chunk IDs, and optional local cl100k_base token counting.
+- Optimized table extraction: the local 12-page management report decreased from
+  48.594 to 5.077 seconds in a like-for-like benchmark.
+- Added strict acceptance, configurable resource budgets, bounded HTTP client
+  responses, raw text normalization maps, nested lists and typed vector markers.
+- Added offline o200k_base counting, shared output/result construction, image
+  resource reuse, frozen dependency installation and container CI checks.
+- This preview has not been published to PyPI.
+- Started the application-ready architecture: schema 3.0 typed document JSON,
+  validated node/asset/table references, source fragments, ordered traversal,
+  structured issues, page scope and representation accounting.
+- Preserved headers/footers and omitted-image occurrences, removed metadata body
+  insertion, and made text-table output independent of requested formats.
+- Removed retired pipeline presets and emit flags. Added bundled schemas and
+  independently specified conversion fixtures for SDK and HTTP.
 
 ## [0.1.2] - 2026-08-25
 

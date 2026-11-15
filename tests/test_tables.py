@@ -1,8 +1,11 @@
 import pymupdf as fitz
 
-from trueparse.core.enums import ElementType
-from trueparse.core.models import BoundingBox, TableCell, TableElement
-from trueparse.tables.native import NativeTableExtractor
+from trueparse.exporters.tables import TableRenderer
+from trueparse.extraction.tables import NativeTableExtractor
+from trueparse.models.elements import TableCell, TableElement
+from trueparse.models.enums import ElementType
+from trueparse.models.geometry import BoundingBox
+from trueparse.processing.tables import TableMerger
 
 
 def _cell(row: int, col: int, text: str, x0: float, is_header: bool = False) -> TableCell:
@@ -28,6 +31,7 @@ def _table(elem_id: str, page: int, rows: int, cells: list[TableCell]) -> TableE
         columns=2,
         cells=cells,
         markdown="| A | B |\n| --- | --- |\n| 1 | 2 |",
+        metadata={"continuation_hint": page > 1},
     )
 
 
@@ -58,9 +62,7 @@ class TestNativeTableExtraction:
 
     def test_unknown_strategy_is_ignored_gracefully(self, sample_pdf_path):
         doc = fitz.open(sample_pdf_path)
-        tables = NativeTableExtractor.extract_page_tables(
-            doc[1], 2, strategies=["not_a_real_strategy"]
-        )
+        tables = NativeTableExtractor.extract_page_tables(doc[1], 2, strategies=["not_a_real_strategy"])
         doc.close()
         assert tables == []
 
@@ -94,14 +96,12 @@ class TestSpanReconstruction:
 
     def test_html_escapes_cell_content(self):
         cells = [_cell(0, 0, "<script>alert(1)</script>", 50.0, is_header=True)]
-        html = NativeTableExtractor._to_html(cells, num_rows=1, header_rows=1)
+        html = TableRenderer._to_html(cells, num_rows=1, header_rows=1)
         assert "<script>" not in html
         assert "&lt;script&gt;" in html
 
     def test_markdown_escapes_pipes_and_pads_short_rows(self):
-        markdown = NativeTableExtractor._to_markdown(
-            [["A|B", "C"], ["only-one-cell"]], num_cols=2
-        )
+        markdown = TableRenderer._to_markdown([["A|B", "C"], ["only-one-cell"]], num_cols=2)
         lines = markdown.split("\n")
         assert "A\\|B" in lines[0]
 
@@ -112,20 +112,52 @@ class TestSpanReconstruction:
 
 
 class TestCrossPageMerge:
+    def test_aligned_tables_with_different_headers_are_separate(self):
+        first = _table(
+            "t1",
+            page=1,
+            rows=1,
+            cells=[
+                _cell(0, 0, "Metric", 50.0, is_header=True),
+                _cell(0, 1, "Value", 300.0, is_header=True),
+            ],
+        )
+        second = _table(
+            "t2",
+            page=2,
+            rows=1,
+            cells=[
+                _cell(0, 0, "Employee", 50.0, is_header=True),
+                _cell(0, 1, "Department", 300.0, is_header=True),
+            ],
+        )
+        merged = TableMerger.merge_cross_page_tables([[first], [second]])
+        assert [len(page) for page in merged] == [1, 1]
+
     def test_continuation_is_absorbed(self):
-        first = _table("t1", page=1, rows=2, cells=[
-            _cell(0, 0, "Metric", 50.0, is_header=True),
-            _cell(0, 1, "Value", 300.0, is_header=True),
-            _cell(1, 0, "Revenue", 50.0),
-            _cell(1, 1, "$100M", 300.0),
-        ])
-        second = _table("t2", page=2, rows=1, cells=[
-            _cell(0, 0, "Costs", 50.0),
-            _cell(0, 1, "$40M", 300.0),
-        ])
+        first = _table(
+            "t1",
+            page=1,
+            rows=2,
+            cells=[
+                _cell(0, 0, "Metric", 50.0, is_header=True),
+                _cell(0, 1, "Value", 300.0, is_header=True),
+                _cell(1, 0, "Revenue", 50.0),
+                _cell(1, 1, "$100M", 300.0),
+            ],
+        )
+        second = _table(
+            "t2",
+            page=2,
+            rows=1,
+            cells=[
+                _cell(0, 0, "Costs", 50.0),
+                _cell(0, 1, "$40M", 300.0),
+            ],
+        )
         pages = [[first], [second]]
 
-        merged = NativeTableExtractor.merge_cross_page_tables(pages)
+        merged = TableMerger.merge_cross_page_tables(pages)
         assert len(merged[0]) == 1
         assert len(merged[1]) == 0
         assert merged[0][0].rows == 3
@@ -137,18 +169,29 @@ class TestCrossPageMerge:
             _cell(0, 0, "Metric", 50.0, is_header=True),
             _cell(0, 1, "Value", 300.0, is_header=True),
         ]
-        first = _table("t1", page=1, rows=2, cells=header_cells + [
-            _cell(1, 0, "Revenue", 50.0),
-            _cell(1, 1, "$100M", 300.0),
-        ])
-        second = _table("t2", page=2, rows=2, cells=[
-            _cell(0, 0, "Metric", 50.0, is_header=True),
-            _cell(0, 1, "Value", 300.0, is_header=True),
-            _cell(1, 0, "Costs", 50.0),
-            _cell(1, 1, "$40M", 300.0),
-        ])
+        first = _table(
+            "t1",
+            page=1,
+            rows=2,
+            cells=header_cells
+            + [
+                _cell(1, 0, "Revenue", 50.0),
+                _cell(1, 1, "$100M", 300.0),
+            ],
+        )
+        second = _table(
+            "t2",
+            page=2,
+            rows=2,
+            cells=[
+                _cell(0, 0, "Metric", 50.0, is_header=True),
+                _cell(0, 1, "Value", 300.0, is_header=True),
+                _cell(1, 0, "Costs", 50.0),
+                _cell(1, 1, "$40M", 300.0),
+            ],
+        )
 
-        merged = NativeTableExtractor.merge_cross_page_tables([[first], [second]])
+        merged = TableMerger.merge_cross_page_tables([[first], [second]])
         table = merged[0][0]
         assert table.rows == 3
         assert sum(1 for c in table.cells if c.text == "Metric") == 1
@@ -158,24 +201,36 @@ class TestCrossPageMerge:
         second = _table("t2", page=2, rows=1, cells=[_cell(0, 0, "B", 50.0)])
         second.columns = 5
 
-        merged = NativeTableExtractor.merge_cross_page_tables([[first], [second]])
+        merged = TableMerger.merge_cross_page_tables([[first], [second]])
         assert len(merged[0]) == 1
         assert len(merged[1]) == 1
 
     def test_misaligned_columns_are_not_merged(self):
-        first = _table("t1", page=1, rows=1, cells=[
-            _cell(0, 0, "A", 50.0), _cell(0, 1, "B", 300.0),
-        ])
-        second = _table("t2", page=2, rows=1, cells=[
-            _cell(0, 0, "C", 200.0), _cell(0, 1, "D", 450.0),
-        ])
-        merged = NativeTableExtractor.merge_cross_page_tables([[first], [second]])
+        first = _table(
+            "t1",
+            page=1,
+            rows=1,
+            cells=[
+                _cell(0, 0, "A", 50.0),
+                _cell(0, 1, "B", 300.0),
+            ],
+        )
+        second = _table(
+            "t2",
+            page=2,
+            rows=1,
+            cells=[
+                _cell(0, 0, "C", 200.0),
+                _cell(0, 1, "D", 450.0),
+            ],
+        )
+        merged = TableMerger.merge_cross_page_tables([[first], [second]])
         assert len(merged[1]) == 1
 
     def test_intervening_page_without_tables_breaks_continuation(self):
         first = _table("t1", page=1, rows=1, cells=[_cell(0, 0, "A", 50.0)])
         third = _table("t3", page=3, rows=1, cells=[_cell(0, 0, "B", 50.0)])
-        merged = NativeTableExtractor.merge_cross_page_tables([[first], [], [third]])
+        merged = TableMerger.merge_cross_page_tables([[first], [], [third]])
         assert len(merged[0]) == 1
         assert len(merged[2]) == 1
 
@@ -193,9 +248,7 @@ class TestSpacerColumns:
         grid = []
         for r in range(2):
             y0, y1 = 100.0 + r * 20, 120.0 + r * 20
-            grid.append([
-                BoundingBox(x0=x0, y0=y0, x1=x1, y1=y1) for x0, x1 in edges
-            ])
+            grid.append([BoundingBox(x0=x0, y0=y0, x1=x1, y1=y1) for x0, x1 in edges])
         return grid
 
     def test_adjacent_narrow_column_is_not_absorbed(self):

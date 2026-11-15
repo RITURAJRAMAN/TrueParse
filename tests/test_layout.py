@@ -1,18 +1,28 @@
 """Reading order, heading classification, and paragraph merging."""
+
 import pymupdf as fitz
 
-from trueparse.core.config import ParseOptions
-from trueparse.core.enums import ElementType
-from trueparse.core.models import BoundingBox, DocumentElement
-from trueparse.document.reading_order import ReadingOrderEngine
-from trueparse.document.text_merge import dehyphenate, merge_paragraphs
-from trueparse.pdf.native import NativeExtractor
+from trueparse.config.options import ParseOptions
+from trueparse.extraction.pdf.text import NativeExtractor
+from trueparse.models.elements import DocumentElement
+from trueparse.models.enums import ElementType
+from trueparse.models.geometry import BoundingBox
 from trueparse.pipeline.runner import PDFParser
+from trueparse.processing.reading_order import ReadingOrderEngine
+from trueparse.processing.text_merge import dehyphenate, merge_paragraphs
+from trueparse.processing.typography import TypographyAnalyzer
 
 
-def _element(elem_id: str, x0: float, y0: float, x1: float, y1: float,
-             elem_type: ElementType = ElementType.PARAGRAPH, content: str = "text",
-             page: int = 1) -> DocumentElement:
+def _element(
+    elem_id: str,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    elem_type: ElementType = ElementType.PARAGRAPH,
+    content: str = "text",
+    page: int = 1,
+) -> DocumentElement:
     return DocumentElement(
         id=elem_id,
         type=elem_type,
@@ -30,7 +40,7 @@ class TestReadingOrder:
             _element("a", 50, 100, 550, 120),
             _element("b", 50, 200, 550, 220),
         ]
-        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0, 792.0)
+        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0)
         assert [e.id for e in ordered] == ["a", "b", "c"]
 
     def test_two_columns_read_left_then_right(self):
@@ -40,7 +50,7 @@ class TestReadingOrder:
             _element("l2", 50, 200, 280, 220),
             _element("r2", 320, 200, 550, 220),
         ]
-        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0, 792.0)
+        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0)
         assert [e.id for e in ordered] == ["l1", "l2", "r1", "r2"]
 
     def test_three_columns_are_discovered(self):
@@ -49,9 +59,14 @@ class TestReadingOrder:
         for col, x0 in enumerate((50, 240, 430)):
             for row, y0 in enumerate((100, 200)):
                 elements.append(_element(f"c{col}r{row}", x0, y0, x0 + 130, y0 + 20))
-        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0, 792.0)
+        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0)
         assert [e.id for e in ordered] == [
-            "c0r0", "c0r1", "c1r0", "c1r1", "c2r0", "c2r1",
+            "c0r0",
+            "c0r1",
+            "c1r0",
+            "c1r1",
+            "c2r0",
+            "c2r1",
         ]
 
     def test_off_centre_columns_are_handled(self):
@@ -62,7 +77,7 @@ class TestReadingOrder:
             _element("wide1", 220, 100, 550, 120),
             _element("wide2", 220, 200, 550, 220),
         ]
-        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0, 792.0)
+        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0)
         assert [e.id for e in ordered] == ["narrow1", "narrow2", "wide1", "wide2"]
 
     def test_headers_first_and_footers_last(self):
@@ -71,7 +86,7 @@ class TestReadingOrder:
             _element("body", 50, 300, 550, 320),
             _element("header", 50, 20, 550, 40, ElementType.HEADER),
         ]
-        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0, 792.0)
+        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0)
         assert [e.id for e in ordered] == ["header", "body", "footer"]
 
     def test_full_width_element_breaks_columns_into_bands(self):
@@ -82,15 +97,15 @@ class TestReadingOrder:
             _element("l2", 50, 200, 280, 220),
             _element("r2", 320, 200, 550, 220),
         ]
-        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0, 792.0)
+        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0)
         assert [e.id for e in ordered] == ["l1", "r1", "banner", "l2", "r2"]
 
     def test_empty_input_returns_empty(self):
-        assert ReadingOrderEngine.order_page_elements([], 612.0, 792.0) == []
+        assert ReadingOrderEngine.order_page_elements([], 612.0) == []
 
     def test_reading_order_is_sequential_from_one(self):
         elements = [_element(f"e{i}", 50, i * 40.0, 550, i * 40.0 + 20) for i in range(5)]
-        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0, 792.0)
+        ordered = ReadingOrderEngine.order_page_elements(elements, 612.0)
         assert [e.reading_order for e in ordered] == [1, 2, 3, 4, 5]
 
 
@@ -100,7 +115,8 @@ class TestThreeColumnEndToEnd:
         doc = PDFParser(options=options).parse(three_column_pdf_path)
 
         body = [
-            e.content for e in doc.pages[0].elements
+            e.content
+            for e in doc.pages[0].elements
             if e.type == ElementType.PARAGRAPH and "Column" in e.content
         ]
         assert body == [
@@ -126,19 +142,19 @@ class TestFontProfile:
             blocks.extend(page_blocks)
         doc.close()
 
-        profile = NativeExtractor.build_font_profile(blocks)
+        profile = TypographyAnalyzer.build_font_profile(blocks)
         assert profile.body_size == 11.0
         # 16pt and 18pt headings sit above body and form the ladder.
         assert profile.ladder
         assert max(profile.ladder) >= 16.0
 
     def test_empty_document_yields_a_usable_default(self):
-        profile = NativeExtractor.build_font_profile([])
+        profile = TypographyAnalyzer.build_font_profile([])
         assert profile.body_size > 0
         assert profile.ladder == []
 
     def test_level_for_returns_none_for_body_text(self):
-        profile = NativeExtractor.build_font_profile([])
+        profile = TypographyAnalyzer.build_font_profile([])
         assert profile.level_for(profile.body_size, is_bold=False) is None
 
 
@@ -185,28 +201,34 @@ class TestParagraphMerging:
         assert dehyphenate("Anglo-\nSaxon") == "Anglo-\nSaxon"
 
     def test_open_sentence_absorbs_its_continuation(self):
-        pages = [[
-            _element("a", 50, 100, 280, 120, content="The quarterly results were"),
-            _element("b", 320, 100, 550, 120, content="stronger than forecast."),
-        ]]
+        pages = [
+            [
+                _element("a", 50, 100, 280, 120, content="The quarterly results were"),
+                _element("b", 320, 100, 550, 120, content="stronger than forecast."),
+            ]
+        ]
         merged = merge_paragraphs(pages)
         assert len(merged[0]) == 1
         assert merged[0][0].content == "The quarterly results were stronger than forecast."
         assert merged[0][0].metadata["merged_element_ids"] == ["b"]
 
     def test_closed_sentence_is_left_alone(self):
-        pages = [[
-            _element("a", 50, 100, 550, 120, content="First complete sentence."),
-            _element("b", 50, 130, 550, 150, content="Second complete sentence."),
-        ]]
+        pages = [
+            [
+                _element("a", 50, 100, 550, 120, content="First complete sentence."),
+                _element("b", 50, 130, 550, 150, content="Second complete sentence."),
+            ]
+        ]
         merged = merge_paragraphs(pages)
         assert len(merged[0]) == 2
 
     def test_capitalised_continuation_is_not_absorbed(self):
-        pages = [[
-            _element("a", 50, 100, 550, 120, content="An open clause without a period"),
-            _element("b", 50, 130, 550, 150, content="Another Heading Style Line"),
-        ]]
+        pages = [
+            [
+                _element("a", 50, 100, 550, 120, content="An open clause without a period"),
+                _element("b", 50, 130, 550, 150, content="Another Heading Style Line"),
+            ]
+        ]
         merged = merge_paragraphs(pages)
         assert len(merged[0]) == 2
 
@@ -222,9 +244,11 @@ class TestParagraphMerging:
         assert merged[0][0].metadata["spans_pages"] == [1, 2]
 
     def test_tables_are_never_merged_into_prose(self):
-        pages = [[
-            _element("a", 50, 100, 550, 120, content="Results are shown below"),
-            _element("t", 50, 130, 550, 200, ElementType.TABLE, content="a\tb"),
-        ]]
+        pages = [
+            [
+                _element("a", 50, 100, 550, 120, content="Results are shown below"),
+                _element("t", 50, 130, 550, 200, ElementType.TABLE, content="a\tb"),
+            ]
+        ]
         merged = merge_paragraphs(pages)
         assert len(merged[0]) == 2

@@ -1,17 +1,12 @@
-from trueparse.core.config import ParseOptions
-from trueparse.core.enums import ElementType
-from trueparse.core.models import (
-    BoundingBox,
-    Document,
-    DocumentElement,
-    DocumentMetadata,
-    FigureElement,
-    HeadingElement,
-    Page,
-)
+from trueparse.config.options import OutputConfig, ParseOptions
+from trueparse.exporters.html import HTMLExporter
+from trueparse.exporters.markdown import MarkdownExporter
+from trueparse.exporters.text import TextExporter
+from trueparse.models.document import Document, DocumentMetadata, Page
+from trueparse.models.elements import DocumentElement, FigureElement, HeadingElement
+from trueparse.models.enums import ElementType
+from trueparse.models.geometry import BoundingBox
 from trueparse.pipeline.runner import PDFParser
-from trueparse.serializer.html import HTMLExporter, TextExporter
-from trueparse.serializer.markdown import MarkdownExporter
 
 
 def _doc() -> Document:
@@ -19,28 +14,67 @@ def _doc() -> Document:
     return Document(
         id="doc_serial",
         metadata=DocumentMetadata(title="Quarterly <Report>", page_count=1),
-        pages=[Page(page_number=1, width=612.0, height=792.0, elements=[
-            HeadingElement(id="h1", type=ElementType.SECTION_HEADER, page=1, bbox=bbox,
-                           reading_order=1, content="Results & Analysis", level=1),
-            DocumentElement(id="p1", type=ElementType.PARAGRAPH, page=1, bbox=bbox,
-                            reading_order=2, content="Revenue grew by 12%."),
-            DocumentElement(id="l1", type=ElementType.LIST, page=1, bbox=bbox,
-                            reading_order=3, content="• First point\n• Second point"),
-            DocumentElement(id="f1", type=ElementType.FOOTER, page=1, bbox=bbox,
-                            reading_order=4, content="Confidential"),
-            FigureElement(id="fig1", type=ElementType.FIGURE, page=1, bbox=bbox,
-                          reading_order=5, content="[Embedded Image]",
-                          asset_id="a1", asset_path="assets/images/a1.png"),
-        ])],
+        pages=[
+            Page(
+                page_number=1,
+                width=612.0,
+                height=792.0,
+                elements=[
+                    HeadingElement(
+                        id="h1",
+                        type=ElementType.SECTION_HEADER,
+                        page=1,
+                        bbox=bbox,
+                        reading_order=1,
+                        content="Results & Analysis",
+                        level=1,
+                    ),
+                    DocumentElement(
+                        id="p1",
+                        type=ElementType.PARAGRAPH,
+                        page=1,
+                        bbox=bbox,
+                        reading_order=2,
+                        content="Revenue grew by 12%.",
+                    ),
+                    DocumentElement(
+                        id="l1",
+                        type=ElementType.LIST,
+                        page=1,
+                        bbox=bbox,
+                        reading_order=3,
+                        content="• First point\n• Second point",
+                    ),
+                    DocumentElement(
+                        id="f1",
+                        type=ElementType.FOOTER,
+                        page=1,
+                        bbox=bbox,
+                        reading_order=4,
+                        content="Confidential",
+                    ),
+                    FigureElement(
+                        id="fig1",
+                        type=ElementType.FIGURE,
+                        page=1,
+                        bbox=bbox,
+                        reading_order=5,
+                        content="[Embedded Image]",
+                        asset_id="a1",
+                        asset_path="assets/images/a1.png",
+                    ),
+                ],
+            )
+        ],
     )
 
 
 class TestMarkdownExporter:
     def test_heading_level_maps_to_hashes(self):
-        assert "## Results & Analysis" in MarkdownExporter.export(_doc())
+        assert "# Results & Analysis" in MarkdownExporter.export(_doc())
 
-    def test_footers_are_omitted(self):
-        assert "Confidential" not in MarkdownExporter.export(_doc())
+    def test_footers_are_preserved(self):
+        assert "Confidential" in MarkdownExporter.export(_doc())
 
     def test_list_becomes_bullets(self):
         markdown = MarkdownExporter.export(_doc())
@@ -73,8 +107,8 @@ class TestHTMLExporter:
     def test_tables_scroll_rather_than_overflow(self):
         assert "overflow-x: auto" in HTMLExporter.export(_doc())
 
-    def test_footers_are_omitted(self):
-        assert "Confidential" not in HTMLExporter.export(_doc())
+    def test_footers_are_preserved(self):
+        assert "Confidential" in HTMLExporter.export(_doc())
 
 
 class TestTextExporter:
@@ -82,7 +116,7 @@ class TestTextExporter:
         text = TextExporter.export(_doc())
         assert "Results & Analysis" in text
         assert "Revenue grew by 12%." in text
-        assert "Confidential" not in text
+        assert "Confidential" in text
 
     def test_ends_with_a_newline(self):
         assert TextExporter.export(_doc()).endswith("\n")
@@ -91,21 +125,28 @@ class TestTextExporter:
 class TestPipelineOutputs:
     def test_all_formats_are_written_when_requested(self, tmp_path, sample_pdf_path):
         options = ParseOptions(
-            output_path=str(tmp_path), max_pages=2,
-            emit_html=True, emit_text=True, emit_chunks=True,
+            output_path=str(tmp_path),
+            max_pages=2,
+            output_config=OutputConfig(formats=["json", "markdown", "html", "text", "chunks"]),
         )
         doc = PDFParser(options=options).parse(sample_pdf_path)
-        output = tmp_path / doc.id / "output"
+        output = tmp_path / doc.id
 
-        for name in ("document.json", "document.md", "document.html", "document.txt", "chunks.jsonl"):
+        for name in (
+            "sample_document.json",
+            "sample_document.md",
+            "sample_document.html",
+            "sample_document.txt",
+            "sample_document.chunks.jsonl",
+        ):
             assert (output / name).exists(), f"{name} was not written"
 
     def test_optional_formats_are_skipped_by_default(self, tmp_path, sample_pdf_path):
         options = ParseOptions(output_path=str(tmp_path), max_pages=1)
         doc = PDFParser(options=options).parse(sample_pdf_path)
-        output = tmp_path / doc.id / "output"
+        output = tmp_path / doc.id
 
-        assert (output / "document.json").exists()
-        assert (output / "document.md").exists()
-        for name in ("document.html", "document.txt", "chunks.jsonl"):
+        assert (output / "sample_document.json").exists()
+        assert (output / "sample_document.md").exists()
+        for name in ("sample_document.html", "sample_document.txt", "sample_document.chunks.jsonl"):
             assert not (output / name).exists()

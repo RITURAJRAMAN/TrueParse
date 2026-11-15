@@ -1,30 +1,9 @@
 import io
-import os
-import tempfile
 from pathlib import Path
 
 import pymupdf as fitz
 import pytest
 from PIL import Image, ImageDraw, ImageFont
-
-# The API reads its output root and worker mode from the environment at import
-# time, so both must be set before any test imports trueparse.api.routes.
-#
-# resolve() matters: on Windows, mkdtemp() can return an 8.3 short path
-# (C:\Users\RUNNER~1\...), while the engine resolves every path before use so
-# that containment checks are reliable. Without resolving here too, tests would
-# compare a short path against a long one.
-_TEST_OUTPUT_ROOT = Path(tempfile.mkdtemp(prefix="trueparse_tests_")).resolve()
-os.environ.setdefault("TRUEPARSE_OUTPUT_ROOT", str(_TEST_OUTPUT_ROOT))
-# Threads keep the suite fast and deterministic; the process pool is exercised
-# by its own dedicated test.
-os.environ.setdefault("TRUEPARSE_WORKER_MODE", "thread")
-
-
-@pytest.fixture(scope="session")
-def test_output_root() -> Path:
-    """The directory the API server is configured to write into."""
-    return _TEST_OUTPUT_ROOT
 
 
 @pytest.fixture(scope="session")
@@ -46,7 +25,9 @@ def sample_pdf_path(tmp_path_factory) -> Path:
     # Page 1: Headings, text, and embedded image
     p1 = doc.new_page(width=612, height=792)
     p1.insert_text((54, 72), "Executive Summary", fontsize=18)
-    p1.insert_text((54, 120), "This is a test paragraph describing TrueParse performance metrics.", fontsize=11)
+    p1.insert_text(
+        (54, 120), "This is a test paragraph describing TrueParse performance metrics.", fontsize=11
+    )
     p1.insert_image(fitz.Rect(54, 160, 254, 260), stream=img_bytes)
 
     # Page 2: Ruled Table
@@ -66,7 +47,9 @@ def sample_pdf_path(tmp_path_factory) -> Path:
     # Page 3: Concluding Section
     p3 = doc.new_page(width=612, height=792)
     p3.insert_text((54, 72), "Conclusion & Recommendations", fontsize=16)
-    p3.insert_text((54, 120), "TrueParse local engine provides deterministic document intelligence.", fontsize=11)
+    p3.insert_text(
+        (54, 120), "TrueParse local engine provides deterministic document intelligence.", fontsize=11
+    )
 
     doc.save(str(pdf_path))
     doc.close()
@@ -110,9 +93,7 @@ def spanned_table_pdf_path(tmp_path_factory) -> Path:
     page.draw_line(fitz.Point(left, top + row_h), fitz.Point(right, top + row_h))
     page.draw_line(fitz.Point(left, top + row_h * 2), fitz.Point(right, top + row_h * 2))
     # Vertical divider only below the first row, making row 0 a 2-column span.
-    page.draw_line(
-        fitz.Point(277, top + row_h), fitz.Point(277, top + row_h * 3)
-    )
+    page.draw_line(fitz.Point(277, top + row_h), fitz.Point(277, top + row_h * 3))
 
     page.insert_text((60, top + 25), "Consolidated Results", fontsize=11)
     page.insert_text((60, top + row_h + 25), "Metric", fontsize=11)

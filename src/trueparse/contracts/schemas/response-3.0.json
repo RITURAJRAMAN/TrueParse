@@ -1,0 +1,1301 @@
+{
+  "$defs": {
+    "Issue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "severity": {
+          "default": "warning",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Node Ids",
+          "type": "array"
+        },
+        "recovered": {
+          "default": false,
+          "title": "Recovered",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "stage",
+        "message"
+      ],
+      "title": "Issue",
+      "type": "object"
+    },
+    "OutputFormat": {
+      "enum": [
+        "json",
+        "markdown",
+        "html",
+        "text",
+        "chunks"
+      ],
+      "title": "OutputFormat",
+      "type": "string"
+    },
+    "ParsedOutputData": {
+      "description": "Container for requested format representations. Unrequested formats are None.",
+      "properties": {
+        "json": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CanonicalDocument"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "markdown": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clean Markdown export",
+          "title": "Markdown"
+        },
+        "html": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Semantic HTML export",
+          "title": "Html"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Plain reading-order text",
+          "title": "Text"
+        },
+        "chunks": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "RAG chunks",
+          "title": "Chunks"
+        }
+      },
+      "title": "ParsedOutputData",
+      "type": "object"
+    },
+    "RepresentationReport": {
+      "additionalProperties": false,
+      "properties": {
+        "rendered_node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Rendered Node Ids",
+          "type": "array"
+        },
+        "excluded_node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excluded Node Ids",
+          "type": "array"
+        },
+        "losses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Losses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rendered_node_ids"
+      ],
+      "title": "RepresentationReport",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "properties": {
+        "source_pages": {
+          "minimum": 0,
+          "title": "Source Pages",
+          "type": "integer"
+        },
+        "requested_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Requested Pages",
+          "type": "array"
+        },
+        "processed_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Processed Pages",
+          "type": "array"
+        },
+        "failed_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Failed Pages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_pages",
+        "requested_pages",
+        "processed_pages"
+      ],
+      "title": "Scope",
+      "type": "object"
+    },
+    "Asset": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "mime_type": {
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "width": {
+          "minimum": 0,
+          "title": "Width",
+          "type": "integer"
+        },
+        "height": {
+          "minimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "omitted",
+            "unavailable"
+          ],
+          "title": "Availability",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "data_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Data Uri"
+        }
+      },
+      "required": [
+        "id",
+        "mime_type",
+        "width",
+        "height",
+        "availability"
+      ],
+      "title": "Asset",
+      "type": "object"
+    },
+    "Cell": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "row": {
+          "minimum": 0,
+          "title": "Row",
+          "type": "integer"
+        },
+        "column": {
+          "minimum": 0,
+          "title": "Column",
+          "type": "integer"
+        },
+        "row_span": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Row Span",
+          "type": "integer"
+        },
+        "col_span": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Col Span",
+          "type": "integer"
+        },
+        "is_header": {
+          "default": false,
+          "title": "Is Header",
+          "type": "boolean"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "kind": {
+          "default": "text",
+          "enum": [
+            "text",
+            "visual_marker"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Fragment"
+        }
+      },
+      "required": [
+        "id",
+        "row",
+        "column",
+        "text",
+        "source"
+      ],
+      "title": "Cell",
+      "type": "object"
+    },
+    "Fragment": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        }
+      },
+      "required": [
+        "page"
+      ],
+      "title": "Fragment",
+      "type": "object"
+    },
+    "ListItem": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "marker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Marker"
+        },
+        "children": {
+          "items": {
+            "$ref": "#/$defs/ListItem"
+          },
+          "title": "Children",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ListItem",
+      "type": "object"
+    },
+    "ListNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "source": {
+          "items": {
+            "$ref": "#/$defs/Fragment"
+          },
+          "title": "Source",
+          "type": "array"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "engine": {
+          "title": "Engine",
+          "type": "string"
+        },
+        "type": {
+          "const": "list",
+          "default": "list",
+          "title": "Type",
+          "type": "string"
+        },
+        "ordered": {
+          "title": "Ordered",
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ListItem"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "content",
+        "source",
+        "method",
+        "engine",
+        "ordered",
+        "items"
+      ],
+      "title": "ListNode",
+      "type": "object"
+    },
+    "Page": {
+      "additionalProperties": false,
+      "properties": {
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "width": {
+          "minimum": 0,
+          "title": "Width",
+          "type": "number"
+        },
+        "height": {
+          "minimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "rotation": {
+          "title": "Rotation",
+          "type": "integer"
+        },
+        "node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Node Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "page_number",
+        "width",
+        "height",
+        "rotation",
+        "node_ids"
+      ],
+      "title": "Page",
+      "type": "object"
+    },
+    "Projection": {
+      "additionalProperties": false,
+      "properties": {
+        "excluded_node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Excluded Node Ids",
+          "type": "array"
+        },
+        "omitted_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Omitted Fields",
+          "type": "array"
+        }
+      },
+      "title": "Projection",
+      "type": "object"
+    },
+    "Relation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "source_id",
+        "target_id"
+      ],
+      "title": "Relation",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "level": {
+          "minimum": 0,
+          "title": "Level",
+          "type": "integer"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Id"
+        },
+        "node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Node Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "level",
+        "node_ids"
+      ],
+      "title": "Section",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filename"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "page_count": {
+          "minimum": 0,
+          "title": "Page Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sha256",
+        "page_count"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "TableNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "source": {
+          "items": {
+            "$ref": "#/$defs/Fragment"
+          },
+          "title": "Source",
+          "type": "array"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "engine": {
+          "title": "Engine",
+          "type": "string"
+        },
+        "type": {
+          "const": "table",
+          "default": "table",
+          "title": "Type",
+          "type": "string"
+        },
+        "rows": {
+          "minimum": 0,
+          "title": "Rows",
+          "type": "integer"
+        },
+        "columns": {
+          "minimum": 0,
+          "title": "Columns",
+          "type": "integer"
+        },
+        "cells": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Cell"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cells"
+        },
+        "markdown": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Markdown"
+        },
+        "html": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Html"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "content",
+        "source",
+        "method",
+        "engine",
+        "rows",
+        "columns"
+      ],
+      "title": "TableNode",
+      "type": "object"
+    },
+    "TextMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "source_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Start"
+        },
+        "source_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source End"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "TextMapping",
+      "type": "object"
+    },
+    "TextNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "source": {
+          "items": {
+            "$ref": "#/$defs/Fragment"
+          },
+          "title": "Source",
+          "type": "array"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "engine": {
+          "title": "Engine",
+          "type": "string"
+        },
+        "type": {
+          "const": "text",
+          "default": "text",
+          "title": "Type",
+          "type": "string"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level"
+        },
+        "original_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Text"
+        },
+        "source_texts": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Texts"
+        },
+        "normalization_map": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/TextMapping"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalization Map"
+        },
+        "recovery_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recovery Reason"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "content",
+        "source",
+        "method",
+        "engine"
+      ],
+      "title": "TextNode",
+      "type": "object"
+    },
+    "VisualNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "source": {
+          "items": {
+            "$ref": "#/$defs/Fragment"
+          },
+          "title": "Source",
+          "type": "array"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "engine": {
+          "title": "Engine",
+          "type": "string"
+        },
+        "type": {
+          "const": "visual",
+          "default": "visual",
+          "title": "Type",
+          "type": "string"
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Id"
+        },
+        "parent_table_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Table Id"
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "omitted",
+            "unavailable"
+          ],
+          "title": "Availability",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "content",
+        "source",
+        "method",
+        "engine",
+        "availability"
+      ],
+      "title": "VisualNode",
+      "type": "object"
+    },
+    "CanonicalDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "3.0",
+          "default": "3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "extraction_id": {
+          "title": "Extraction Id",
+          "type": "string"
+        },
+        "engine_version": {
+          "title": "Engine Version",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "partial"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "pages": {
+          "items": {
+            "$ref": "#/$defs/Page"
+          },
+          "title": "Pages",
+          "type": "array"
+        },
+        "nodes": {
+          "additionalProperties": {
+            "discriminator": {
+              "mapping": {
+                "list": "#/$defs/ListNode",
+                "table": "#/$defs/TableNode",
+                "text": "#/$defs/TextNode",
+                "visual": "#/$defs/VisualNode"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TextNode"
+              },
+              {
+                "$ref": "#/$defs/ListNode"
+              },
+              {
+                "$ref": "#/$defs/TableNode"
+              },
+              {
+                "$ref": "#/$defs/VisualNode"
+              }
+            ]
+          },
+          "title": "Nodes",
+          "type": "object"
+        },
+        "reading_order": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reading Order",
+          "type": "array"
+        },
+        "assets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Asset"
+          },
+          "title": "Assets",
+          "type": "object"
+        },
+        "sections": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Section"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sections"
+        },
+        "relationships": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Relation"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relationships"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/Issue"
+          },
+          "title": "Issues",
+          "type": "array"
+        },
+        "projection": {
+          "$ref": "#/$defs/Projection"
+        },
+        "diagnostics": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Diagnostics"
+        }
+      },
+      "required": [
+        "document_id",
+        "extraction_id",
+        "engine_version",
+        "source",
+        "scope",
+        "status",
+        "pages",
+        "nodes",
+        "reading_order",
+        "assets"
+      ],
+      "title": "CanonicalDocument",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Requested deliverables and actionable warnings, independent of storage.",
+  "properties": {
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "status": {
+      "default": "completed",
+      "enum": [
+        "completed",
+        "partial"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "formats_provided": {
+      "items": {
+        "$ref": "#/$defs/OutputFormat"
+      },
+      "title": "Formats Provided",
+      "type": "array"
+    },
+    "data": {
+      "$ref": "#/$defs/ParsedOutputData"
+    },
+    "metrics": {
+      "additionalProperties": true,
+      "description": "Execution metrics (duration_ms, page_count, asset_count)",
+      "title": "Metrics",
+      "type": "object"
+    },
+    "source_file": {
+      "title": "Source File",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/Issue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "scope": {
+      "$ref": "#/$defs/Scope"
+    },
+    "representations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RepresentationReport"
+      },
+      "title": "Representations",
+      "type": "object"
+    }
+  },
+  "required": [
+    "document_id",
+    "source_file",
+    "scope"
+  ],
+  "title": "ParseResult",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trueparse:schema:3.0:response"
+}

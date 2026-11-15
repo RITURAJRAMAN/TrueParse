@@ -114,7 +114,8 @@ temp/
 # ==========================================
 # Local Maintainer Docs
 # ==========================================
-PUBLISHING.md
+/examples/
+/AGENTS.md
 
 # Local agent/editor settings
 .claude/

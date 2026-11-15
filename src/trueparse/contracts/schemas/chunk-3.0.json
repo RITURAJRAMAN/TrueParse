@@ -1,0 +1,217 @@
+{
+  "$defs": {
+    "ChunkSourceSpan": {
+      "properties": {
+        "element_id": {
+          "title": "Element Id",
+          "type": "string"
+        },
+        "source_element_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Element Id"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "row_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Row Start"
+        },
+        "row_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Row End"
+        },
+        "representation": {
+          "default": "content",
+          "title": "Representation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "element_id",
+        "page"
+      ],
+      "title": "ChunkSourceSpan",
+      "type": "object"
+    }
+  },
+  "description": "A retrieval-ready slice of a document, carrying full spatial provenance.\n\nEvery field beyond ``text`` exists so a downstream RAG answer can be cited\nback to an exact region of the source PDF.",
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "chunk_index": {
+      "default": 0,
+      "title": "Chunk Index",
+      "type": "integer"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    },
+    "token_estimate": {
+      "default": 0,
+      "title": "Token Estimate",
+      "type": "integer"
+    },
+    "tokenizer": {
+      "default": "approximate",
+      "title": "Tokenizer",
+      "type": "string"
+    },
+    "budget_exceeded": {
+      "default": false,
+      "title": "Budget Exceeded",
+      "type": "boolean"
+    },
+    "source_spans": {
+      "items": {
+        "$ref": "#/$defs/ChunkSourceSpan"
+      },
+      "title": "Source Spans",
+      "type": "array"
+    },
+    "section_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Section Id"
+    },
+    "section_path": {
+      "description": "Heading breadcrumb from document root down to this chunk",
+      "items": {
+        "type": "string"
+      },
+      "title": "Section Path",
+      "type": "array"
+    },
+    "page_start": {
+      "default": 0,
+      "title": "Page Start",
+      "type": "integer"
+    },
+    "page_end": {
+      "default": 0,
+      "title": "Page End",
+      "type": "integer"
+    },
+    "bboxes": {
+      "description": "Per-element {page, bbox} pairs covering this chunk",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Bboxes",
+      "type": "array"
+    },
+    "element_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Element Ids",
+      "type": "array"
+    },
+    "element_types": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Element Types",
+      "type": "array"
+    },
+    "asset_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Asset Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "document_id",
+    "text"
+  ],
+  "title": "Chunk",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trueparse:schema:3.0:chunk"
+}

@@ -1,9 +1,9 @@
 import pytest
 
-from trueparse.core.config import ParseOptions
-from trueparse.core.enums import OCRMode, ParsingProfile, SourceMethod
-from trueparse.core.models import BoundingBox
-from trueparse.ocr.engine import OCREngine, OCRLine, OCRPageResult, ocr_available
+from trueparse.config.options import ParseOptions
+from trueparse.extraction.ocr.engine import OCREngine, OCRLine, OCRPageResult, ocr_available
+from trueparse.models.enums import OCRMode, ParsingProfile, SourceMethod
+from trueparse.models.geometry import BoundingBox
 from trueparse.pipeline.runner import PDFParser
 
 
@@ -15,15 +15,13 @@ def _backend_loads() -> bool:
     """
     if not ocr_available():
         return False
-    from trueparse.ocr.engine import _load_engine
+    from trueparse.extraction.ocr.engine import _load_engine
 
     engine, _ = _load_engine()
     return engine is not None
 
 
-ocr_installed = pytest.mark.skipif(
-    not _backend_loads(), reason="OCR backend is not installed or cannot load"
-)
+ocr_installed = pytest.mark.skipif(not _backend_loads(), reason="OCR backend is not installed or cannot load")
 
 
 class TestGracefulDegradation:
@@ -31,9 +29,8 @@ class TestGracefulDegradation:
         assert isinstance(ocr_available(), bool)
         assert isinstance(OCREngine.is_available(), bool)
 
-    def test_recognize_returns_empty_when_unavailable(self):
-        if ocr_available():
-            pytest.skip("backend installed; degradation path not exercised")
+    def test_recognize_returns_empty_when_unavailable(self, monkeypatch):
+        monkeypatch.setattr("trueparse.extraction.ocr.engine._load_engine", lambda: (None, None))
         result = OCREngine.recognize(b"not-an-image")
         assert result.lines == []
         assert result.engine == "unavailable"
@@ -43,7 +40,7 @@ class TestGracefulDegradation:
         options = ParseOptions(output_path=str(tmp_path), ocr=OCRMode.AUTO)
         doc = PDFParser(options=options).parse(scanned_pdf_path)
         assert len(doc.pages) == 1
-        assert (tmp_path / doc.id / "output" / "document.json").exists()
+        assert (tmp_path / doc.id / "scanned.json").exists()
 
     def test_ocr_never_skips_even_on_a_scan(self, tmp_path, scanned_pdf_path):
         options = ParseOptions(output_path=str(tmp_path), ocr=OCRMode.NEVER)
@@ -52,7 +49,8 @@ class TestGracefulDegradation:
         assert not doc.pages[0].quality.ocr_applied
 
     def test_fast_profile_disables_ocr(self):
-        from trueparse.core.profiles import resolve
+        from trueparse.config.profiles import resolve
+
         assert resolve(ParsingProfile.FAST).ocr_floor == OCRMode.NEVER
 
 
@@ -65,27 +63,33 @@ class TestBlockGrouping:
         )
 
     def test_adjacent_lines_group_into_one_block(self):
-        result = OCRPageResult(lines=[
-            self._line("first line", 100.0),
-            self._line("second line", 114.0),
-        ])
+        result = OCRPageResult(
+            lines=[
+                self._line("first line", 100.0),
+                self._line("second line", 114.0),
+            ]
+        )
         blocks = OCREngine.group_into_blocks(result)
         assert len(blocks) == 1
         assert blocks[0][0] == "first line\nsecond line"
 
     def test_large_vertical_gap_starts_a_new_block(self):
-        result = OCRPageResult(lines=[
-            self._line("paragraph one", 100.0),
-            self._line("paragraph two", 300.0),
-        ])
+        result = OCRPageResult(
+            lines=[
+                self._line("paragraph one", 100.0),
+                self._line("paragraph two", 300.0),
+            ]
+        )
         blocks = OCREngine.group_into_blocks(result)
         assert len(blocks) == 2
 
     def test_block_bbox_is_the_union_of_its_lines(self):
-        result = OCRPageResult(lines=[
-            self._line("a", 100.0),
-            self._line("b", 114.0),
-        ])
+        result = OCRPageResult(
+            lines=[
+                self._line("a", 100.0),
+                self._line("b", 114.0),
+            ]
+        )
         (_, bbox, confidence) = OCREngine.group_into_blocks(result)[0]
         assert bbox.y0 == 100.0
         assert bbox.y1 == 126.0
@@ -98,9 +102,7 @@ class TestBlockGrouping:
 @ocr_installed
 class TestWithBackend:
     def test_scanned_page_recovers_text(self, tmp_path, scanned_pdf_path):
-        options = ParseOptions(
-            output_path=str(tmp_path), ocr=OCRMode.ALWAYS, profile=ParsingProfile.ACCURATE
-        )
+        options = ParseOptions(output_path=str(tmp_path), ocr=OCRMode.ALWAYS, profile=ParsingProfile.ACCURATE)
         doc = PDFParser(options=options).parse(scanned_pdf_path)
 
         assert doc.quality.ocr_pages == 1

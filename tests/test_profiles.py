@@ -1,6 +1,6 @@
-from trueparse.core.config import ParseOptions
-from trueparse.core.enums import OCRMode, ParsingProfile
-from trueparse.core.profiles import resolve
+from trueparse.config.options import ParseOptions
+from trueparse.config.profiles import resolve
+from trueparse.models.enums import OCRMode, ParsingProfile
 from trueparse.pipeline.runner import PDFParser
 
 
@@ -12,12 +12,15 @@ class TestProfileResolution:
             assert settings.table_strategies
 
     def test_dpi_increases_with_accuracy(self):
-        dpis = [resolve(p).render_dpi for p in (
-            ParsingProfile.FAST,
-            ParsingProfile.BALANCED,
-            ParsingProfile.ACCURATE,
-            ParsingProfile.MAXIMUM_ACCURACY,
-        )]
+        dpis = [
+            resolve(p).render_dpi
+            for p in (
+                ParsingProfile.FAST,
+                ParsingProfile.BALANCED,
+                ParsingProfile.ACCURATE,
+                ParsingProfile.MAXIMUM_ACCURACY,
+            )
+        ]
         assert dpis == sorted(dpis)
         assert len(set(dpis)) == 4
 
@@ -50,12 +53,12 @@ class TestProfileApplication:
 
     def test_fast_profile_skips_paragraph_merging(self, tmp_path, sample_pdf_path):
         """A profile difference must be observable in the output, not just config."""
-        fast = PDFParser(options=ParseOptions(
-            output_path=str(tmp_path / "fast"), profile=ParsingProfile.FAST
-        )).parse(sample_pdf_path)
-        balanced = PDFParser(options=ParseOptions(
-            output_path=str(tmp_path / "balanced"), profile=ParsingProfile.BALANCED
-        )).parse(sample_pdf_path)
+        fast = PDFParser(
+            options=ParseOptions(output_path=str(tmp_path / "fast"), profile=ParsingProfile.FAST)
+        ).parse(sample_pdf_path)
+        balanced = PDFParser(
+            options=ParseOptions(output_path=str(tmp_path / "balanced"), profile=ParsingProfile.BALANCED)
+        ).parse(sample_pdf_path)
 
         fast_ids = {e.id for p in fast.pages for e in p.elements}
         balanced_ids = {e.id for p in balanced.pages for e in p.elements}
@@ -65,9 +68,11 @@ class TestProfileApplication:
     def test_debug_render_uses_profile_dpi(self, tmp_path, sample_pdf_path):
         from PIL import Image
 
-        doc = PDFParser(options=ParseOptions(
-            output_path=str(tmp_path), profile=ParsingProfile.FAST, debug=True, max_pages=1
-        )).parse(sample_pdf_path)
+        doc = PDFParser(
+            options=ParseOptions(
+                output_path=str(tmp_path), profile=ParsingProfile.FAST, debug=True, max_pages=1
+            )
+        ).parse(sample_pdf_path)
 
         render = tmp_path / doc.id / "debug" / "pages" / "page_0001.png"
         assert render.exists()

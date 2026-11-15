@@ -1,93 +1,27 @@
-"""TrueParse - Open-source canonical PDF parsing and document understanding engine."""
+"""TrueParse: local PDF extraction with explicit outputs and persistence."""
 
-from trueparse.chunking.chunker import DocumentChunker
-from trueparse.core.config import EngineConfig, ParseOptions
-from trueparse.core.enums import (
-    AssetType,
-    ChunkStrategy,
-    ElementType,
-    ErrorCode,
-    OCRMode,
-    ParsingProfile,
-    RelationshipType,
-    SourceMethod,
-)
-from trueparse.core.errors import PDFEngineError
-from trueparse.core.models import (
-    Asset,
-    AssetOccurrence,
-    BoundingBox,
-    Chunk,
-    Document,
-    DocumentElement,
-    DocumentMetadata,
-    DocumentQuality,
-    FigureElement,
-    GenericElement,
-    Page,
-    PageQuality,
-    Relationship,
-    Section,
-    SourceProvenance,
-    TableCell,
-    TableElement,
-)
-from trueparse.core.profiles import ProfileSettings
-from trueparse.core.version import get_version
-from trueparse.ocr.engine import ocr_available
-from trueparse.pdf.inspector import DocumentInspection, PDFInspector
-from trueparse.pipeline.runner import PDFParser
-from trueparse.serializer.html import HTMLExporter, TextExporter
-from trueparse.serializer.json import JSONSerializer
-from trueparse.serializer.markdown import MarkdownExporter
+from trueparse._version import get_version
+from trueparse.config.options import ResourceLimits
+from trueparse.contracts import CanonicalDocument
+from trueparse.contracts.request import JsonProjection, ParseRequest
+from trueparse.contracts.schema import get_schema
+from trueparse.exceptions import PDFEngineError as ParseError
+from trueparse.sdk.client import TrueParseClient
+from trueparse.sdk.local import aparse, parse
+from trueparse.sdk.result import ParseResult
 
 __version__ = get_version()
 
 __all__ = [
-    # Engine
-    "PDFParser",
-    "PDFInspector",
-    "DocumentInspection",
-    "DocumentChunker",
-    # Configuration
-    "ParseOptions",
-    "EngineConfig",
-    "ProfileSettings",
-    # Enums
-    "ParsingProfile",
-    "OCRMode",
-    "ChunkStrategy",
-    "ElementType",
-    "AssetType",
-    "SourceMethod",
-    "RelationshipType",
-    "ErrorCode",
-    # Models
-    "Document",
-    "Page",
-    "Chunk",
-    "GenericElement",
-    "DocumentElement",
-    "FigureElement",
-    "TableElement",
-    "TableCell",
-    "Asset",
-    "AssetOccurrence",
-    "Section",
-    "Relationship",
-    "SourceProvenance",
-    "BoundingBox",
-    "DocumentMetadata",
-    "DocumentQuality",
-    "PageQuality",
-    # Serializers
-    "JSONSerializer",
-    "MarkdownExporter",
-    "HTMLExporter",
-    "TextExporter",
-    # Errors & capabilities
-    "PDFEngineError",
-    "ocr_available",
-    "get_version",
+    "parse",
+    "aparse",
+    "ParseRequest",
+    "ParseResult",
+    "CanonicalDocument",
+    "get_schema",
+    "ResourceLimits",
+    "JsonProjection",
+    "TrueParseClient",
+    "ParseError",
     "__version__",
 ]

@@ -1,0 +1,15 @@
+﻿{
+  "version": 1,
+  "annotation": "Authored from the source fixture specification, independently of parser output.",
+  "split": "development",
+  "normalization": "Unicode NFC; whitespace collapsed; case, signs, punctuation and units preserved.",
+  "expected_text": [
+    "NORTHWIND INTERNAL", "Quarterly results", "Revenue rose to $123.45 USD.",
+    "3. Apples", "4. Pears", "Figure 1. Regional emblem.", "Page 1 of 2",
+    "Financial summary", "Metric", "Value", "Revenue", "$123.45 USD", "Margin", "24.5%", "Page 2 of 2"
+  ],
+  "table": [["Metric", "Value"], ["Revenue", "$123.45 USD"], ["Margin", "24.5%"]],
+  "visual_occurrences": 2,
+  "metadata_title": "METADATA IS NOT BODY TEXT",
+  "release_evaluation": "No held-out corpus certification; this fixture is a development regression only."
+}

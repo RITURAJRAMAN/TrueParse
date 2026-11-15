@@ -1,7 +1,7 @@
 import pytest
 
-from trueparse.core.config import ParseOptions
-from trueparse.pdf.inspector import PDFInspector
+from trueparse.config.options import ParseOptions
+from trueparse.extraction.pdf.inspector import PDFInspector
 from trueparse.pipeline.runner import PDFParser
 
 
@@ -30,8 +30,8 @@ def test_end_to_end_pipeline(tmp_path, sample_pdf_path):
     assert doc.metadata.page_count > 0
 
     doc_dir = output_dir / doc.id
-    doc_json = doc_dir / "output" / "document.json"
-    doc_md = doc_dir / "output" / "document.md"
+    doc_json = doc_dir / "sample_document.json"
+    doc_md = doc_dir / "sample_document.md"
     assert doc_json.exists()
     assert doc_md.exists()
 
@@ -44,10 +44,6 @@ def test_end_to_end_pipeline(tmp_path, sample_pdf_path):
     # Check assets directory
     assets_dir = doc_dir / "assets"
     assert assets_dir.exists()
-
-    # Check source PDF is saved with original filename
-    source_file = doc_dir / "source" / sample_pdf_path.name
-    assert source_file.exists()
 
 
 def test_vector_figures_are_deduplicated_by_hash(tmp_path):
@@ -95,8 +91,8 @@ def test_encrypted_pdf_roundtrip(tmp_path, encrypted_pdf_path):
 
 
 def test_encrypted_pdf_without_password_raises(tmp_path, encrypted_pdf_path):
-    from trueparse.core.enums import ErrorCode
-    from trueparse.core.errors import PDFEngineError
+    from trueparse.exceptions import PDFEngineError
+    from trueparse.models.enums import ErrorCode
 
     options = ParseOptions(output_path=str(tmp_path))
     with pytest.raises(PDFEngineError) as exc:
@@ -105,8 +101,8 @@ def test_encrypted_pdf_without_password_raises(tmp_path, encrypted_pdf_path):
 
 
 def test_wrong_password_is_reported_distinctly(tmp_path, encrypted_pdf_path):
-    from trueparse.core.enums import ErrorCode
-    from trueparse.core.errors import PDFEngineError
+    from trueparse.exceptions import PDFEngineError
+    from trueparse.models.enums import ErrorCode
 
     options = ParseOptions(output_path=str(tmp_path), password="wrong")
     with pytest.raises(PDFEngineError) as exc:
@@ -116,6 +112,6 @@ def test_wrong_password_is_reported_distinctly(tmp_path, encrypted_pdf_path):
 
 def test_schema_version_is_current(tmp_path, sample_pdf_path):
     options = ParseOptions(output_path=str(tmp_path), max_pages=1)
-    parsed = PDFParser(options=options).parse(sample_pdf_path)
-    assert parsed.schema_version == "1.1"
-    assert parsed.engine_version
+    parsed = PDFParser(options=options).parse_to_response(sample_pdf_path)
+    assert parsed.document["schema_version"] == "3.0"
+    assert parsed.document["engine_version"]
