@@ -22,7 +22,8 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH" \
-    XDG_CACHE_HOME=/tmp/trueparse-cache
+    XDG_CACHE_HOME=/tmp/trueparse-cache \
+    TRUEPARSE_JOBS_ROOT=/tmp/trueparse/jobs
 
 WORKDIR /app
 RUN apt-get update \
