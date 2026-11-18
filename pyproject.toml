@@ -45,8 +45,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/RITURAJRAMAN/TrueParse"
 Documentation = "https://github.com/RITURAJRAMAN/TrueParse#readme"
-API Reference = "https://github.com/RITURAJRAMAN/TrueParse/blob/main/docs/API_References.md"
-SDK Reference = "https://github.com/RITURAJRAMAN/TrueParse/blob/main/docs/SDK_References.md"
+"API Reference" = "https://github.com/RITURAJRAMAN/TrueParse/blob/main/docs/API_References.md"
+"SDK Reference" = "https://github.com/RITURAJRAMAN/TrueParse/blob/main/docs/SDK_References.md"
 Repository = "https://github.com/RITURAJRAMAN/TrueParse.git"
 Issues = "https://github.com/RITURAJRAMAN/TrueParse/issues"
 Changelog = "https://github.com/RITURAJRAMAN/TrueParse/blob/main/CHANGELOG.md"
