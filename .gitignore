@@ -119,3 +119,7 @@ temp/
 
 # Local agent/editor settings
 .claude/
+
+# Local evaluation harness
+/tests/evaluation.py
+/tests/test_evaluation.py

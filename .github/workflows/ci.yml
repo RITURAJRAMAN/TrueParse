@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
@@ -25,7 +26,10 @@ jobs:
           uv sync --frozen --extra dev --python python
 
       - name: Ruff
-        run: uv run --frozen --extra dev ruff check src tests tools
+        run: uv run --frozen --extra dev ruff check src tests
+
+      - name: Ruff format
+        run: uv run --frozen --extra dev ruff format --check src tests
 
       - name: Mypy
         run: uv run --frozen --extra dev mypy
@@ -36,7 +40,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout Code
@@ -95,7 +99,7 @@ jobs:
       - name: Build container
         run: docker build --build-arg INSTALL_OCR=${{ matrix.ocr }} -t trueparse-ci .
       - name: Start container
-        run: docker run -d --name trueparse-ci --read-only --tmpfs /tmp:size=268435456 -p 127.0.0.1:8000:8000 trueparse-ci
+        run: docker run -d --name trueparse-ci --read-only --tmpfs /tmp:size=268435456 -e TRUEPARSE_JOBS_ENABLED=true -e TRUEPARSE_JOBS_ROOT=/app/job-data -v trueparse-ci-jobs:/app/job-data -p 127.0.0.1:8000:8000 trueparse-ci
       - name: Wait for readiness
         run: |
           for attempt in $(seq 1 60); do
@@ -108,6 +112,7 @@ jobs:
         run: |
           docker exec -i trueparse-ci python - <<'PY'
           import json
+          import time
           import urllib.request
           import pymupdf
           with pymupdf.open() as pdf:
@@ -122,7 +127,32 @@ jobs:
           assert result['status'] == 'completed'
           assert result['data']['json']['schema_version'] == '3.0'
           assert 'Container extraction works.' in result['data']['text']
+          boundary = 'trueparse-ci-upload'
+          payload = (
+              f'--{boundary}\r\nContent-Disposition: form-data; name="options"\r\n\r\n{options}\r\n'
+              f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="test.pdf"\r\n'
+              'Content-Type: application/pdf\r\n\r\n'
+          ).encode() + content + f'\r\n--{boundary}--\r\n'.encode()
+          request = urllib.request.Request('http://127.0.0.1:8000/v1/jobs', data=payload,
+              headers={'Content-Type': f'multipart/form-data; boundary={boundary}'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              job = json.load(response)
+          for attempt in range(120):
+              with urllib.request.urlopen('http://127.0.0.1:8000' + job['status_url'], timeout=10) as response:
+                  status = json.load(response)
+              if status['state'] in ('succeeded', 'failed', 'cancelled'):
+                  break
+              time.sleep(0.5)
+          assert status['state'] == 'succeeded', status
+          with urllib.request.urlopen('http://127.0.0.1:8000' + job['result_url'], timeout=30) as response:
+              assert 'Container extraction works.' in json.load(response)['data']['text']
           PY
       - name: Container logs
         if: always()
-        run: docker logs trueparse-ci
+        run: |
+          docker logs trueparse-ci
+      - name: Remove test containers
+        if: always()
+        run: |
+          docker rm -f trueparse-ci || true
+          docker volume rm trueparse-ci-jobs || true

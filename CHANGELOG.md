@@ -1,45 +1,42 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.3] - 2026-11-18
 
-- Preserve header-only tables in retrieval chunks and structured remote error
-  context in the HTTP client; reuse spanning-table HTML across combined exports.
-- Reorganized source by responsibility: extraction, processing, exporters,
-  models/contracts, I/O, runtime and SDK adapters. Split mixed-purpose SDK,
-  table, native-text, API and pipeline modules; retained public root imports.
-- Moved the ASGI entry point to `trueparse.api.app:app` and updated integrations.
-- Independently reviewed accuracy corpus and platform/container release verification.
+### Added
+- Restored durable jobs and batches with SQLite leases, cancellation,
+  idempotent submissions, bounded workers, progress and expiring stored results.
+- Added typed SDK job/batch methods and lazy local `parse_many`/`aparse_many`
+  iterators.
+- Added automatic managed job processing in `trueparse serve` and Docker Compose.
+- Added versioned 1.0 contracts for job, batch and outcome records.
+- Added a public 3.0 canonical document contract with typed nodes, reading order,
+  page fragments, assets, issues and representation accounting.
+- Added bounded OCR threading and explicit OCR initialization, recognition and
+  render failure diagnostics.
+- Added Python 3.14 CI coverage while retaining Python 3.10 as the minimum.
+- Added a deterministic DocLayNet/CORD evaluation harness with source hashes,
+  reference-aware metrics and frozen local snapshots.
 
-## [0.2.0] - Developer preview
+### Changed
+- Reorganized source modules around extraction, processing, exporters, contracts,
+  runtime, I/O, jobs and SDK responsibilities.
+- Kept public root imports and the 3.0 document schema stable.
+- Made Markdown, text, HTML, JSON and chunks independently requested in-memory
+  representations.
+- Moved the ASGI entry point to `trueparse.api.app:app`.
+- Unified Docker startup around one API container with managed job storage.
+- Made authentication optional for every bind address.
+- Made invalid upload-size and job configuration fail clearly at startup.
+- Made wheel data inclusion explicit for bundled schemas and the `py.typed` marker.
+- Added heartbeat and scheduler error reporting, fenced recovery and shutdown
+  cleanup for interrupted jobs.
 
-- Replaced the public integration surface with parse/aparse, a shared strict
-  ParseRequest, ParseResult, ParseError, and an optional TrueParseClient.
-- Made in-memory Markdown the default; file exports are explicit and refuse
-  nonempty destinations.
-- Replaced the HTTP service with one stateless /v1/parse endpoint, bounded memory
-  uploads, isolated parsing processes and hard deadlines.
-- Simplified the CLI to parse, inspect and serve. Removed built-in durable queues,
-  job database and artifact path APIs from the product surface.
-- Separated global visual delivery from JSON-only projection controls.
-- Added installation-wheel checks and public developer-journey tests.
-- Isolated page/stage failures, added regional OCR recovery and spatial text
-  deduplication, and tightened table continuation checks.
-- Added stage timings, demand-driven rendering, precise chunk source spans,
-  document-scoped chunk IDs, and optional local cl100k_base token counting.
-- Optimized table extraction: the local 12-page management report decreased from
-  48.594 to 5.077 seconds in a like-for-like benchmark.
-- Added strict acceptance, configurable resource budgets, bounded HTTP client
-  responses, raw text normalization maps, nested lists and typed vector markers.
-- Added offline o200k_base counting, shared output/result construction, image
-  resource reuse, frozen dependency installation and container CI checks.
-- This preview has not been published to PyPI.
-- Started the application-ready architecture: schema 3.0 typed document JSON,
-  validated node/asset/table references, source fragments, ordered traversal,
-  structured issues, page scope and representation accounting.
-- Preserved headers/footers and omitted-image occurrences, removed metadata body
-  insertion, and made text-table output independent of requested formats.
-- Removed retired pipeline presets and emit flags. Added bundled schemas and
-  independently specified conversion fixtures for SDK and HTTP.
+### Validation
+- Local Windows validation passed 398 tests, Ruff, formatting and mypy.
+- OCR threading was bounded to improve CPU-limited container behavior.
+- Core-only wheel validation passed across the SDK and seven public schemas.
+- A hosted CI execution and target-host sustained capacity study remain release
+  evidence requirements rather than certification.
 
 ## [0.1.2] - 2026-08-25
 

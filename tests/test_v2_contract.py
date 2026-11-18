@@ -74,13 +74,12 @@ def test_memory_base64_is_self_contained_and_creates_no_directories(sample_pdf_p
     assert not (tmp_path / "outputs").exists()
 
 
-@pytest.mark.parametrize("removed", ["preset", "emit_html", "emit_text", "emit_chunks"])
-def test_retired_options_are_rejected(removed):
+@pytest.mark.parametrize("model", [OutputConfig, ParseOptions])
+def test_internal_options_reject_unknown_fields(model):
     from pydantic import ValidationError
 
-    model = OutputConfig if removed == "preset" else ParseOptions
     with pytest.raises(ValidationError):
-        model.model_validate({removed: True})
+        model.model_validate({"unknown_option": True})
 
 
 @pytest.mark.parametrize("stage", ["scan", "classification", "inspection"])

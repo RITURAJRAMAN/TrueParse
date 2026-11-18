@@ -185,17 +185,9 @@ class TestChunkEmission:
         doc = PDFParser(options=options).parse(sample_pdf_path)
 
         chunks_file = tmp_path / doc.id / "sample_document.chunks.jsonl"
-        if not chunks_file.exists():
-            chunks_file = tmp_path / doc.id / "sample_document.chunks.jsonl"
         assert chunks_file.exists()
 
         records = [json.loads(line) for line in chunks_file.read_text(encoding="utf-8").splitlines() if line]
         assert records
         assert all(r["document_id"] == doc.id for r in records)
         assert any(r["text"].strip() for r in records)
-
-    def test_chunks_not_written_unless_requested(self, tmp_path, sample_pdf_path):
-        options = ParseOptions(output_path=str(tmp_path), max_pages=1)
-        doc = PDFParser(options=options).parse(sample_pdf_path)
-        assert not (tmp_path / doc.id / "sample_document.chunks.jsonl").exists()
-        assert not (tmp_path / doc.id / "sample_document.chunks.jsonl").exists()

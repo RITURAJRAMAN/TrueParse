@@ -7,8 +7,28 @@ from fastapi.testclient import TestClient
 
 from trueparse import parse
 from trueparse.api.app import app
+from trueparse.api.settings import max_upload_bytes
 
 client = TestClient(app)
+
+
+@pytest.mark.parametrize("value", ["invalid", "0", "-1", "1.5", "", " "])
+def test_invalid_upload_limit_rejected_before_api_storage(tmp_path, monkeypatch, value):
+    root = tmp_path / "jobs"
+    monkeypatch.setenv("TRUEPARSE_MAX_UPLOAD_MB", value)
+    monkeypatch.setenv("TRUEPARSE_JOBS_ROOT", str(root))
+    with pytest.raises(ValueError, match="TRUEPARSE_MAX_UPLOAD_MB"):
+        with TestClient(app):
+            pass
+    assert not root.exists()
+
+
+@pytest.mark.parametrize("value,expected", [(None, 200), ("1", 1), (" 32 ", 32)])
+def test_upload_limit_accepts_positive_integer_or_default(monkeypatch, value, expected):
+    monkeypatch.delenv("TRUEPARSE_MAX_UPLOAD_MB", raising=False)
+    if value is not None:
+        monkeypatch.setenv("TRUEPARSE_MAX_UPLOAD_MB", value)
+    assert max_upload_bytes() == expected * 1024 * 1024
 
 
 def upload(path, options=None, **kwargs):
@@ -25,7 +45,17 @@ def test_health_and_single_public_parse_route():
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     schema = client.get("/openapi.json").json()
-    assert set(schema["paths"]) == {"/health", "/v1/parse"}
+    assert set(schema["paths"]) == {
+        "/health",
+        "/v1/parse",
+        "/v1/jobs",
+        "/v1/jobs/{job_id}",
+        "/v1/jobs/{job_id}/result",
+        "/v1/jobs/{job_id}/cancel",
+        "/v1/batches",
+        "/v1/batches/{batch_id}",
+        "/v1/batches/{batch_id}/cancel",
+    }
     assert "ParseRequest" in schema["components"]["schemas"]
 
 

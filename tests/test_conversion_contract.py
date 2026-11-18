@@ -13,6 +13,7 @@ from PIL import Image
 from pydantic import ValidationError
 
 from trueparse import CanonicalDocument, parse
+from trueparse._version import get_version
 from trueparse.api.app import app
 from trueparse.contracts.schema import build_schema, get_schema
 from trueparse.exporters.html import HTMLExporter
@@ -80,6 +81,7 @@ def test_known_content_order_cells_and_visuals(conversion_pdf, mode):
     document = CanonicalDocument.model_validate(result["data"]["json"])
     nodes = list(document.iter_nodes())
     assert document.schema_version == "3.0"
+    assert document.engine_version == get_version()
     assert document.source.page_count == 2
     assert document.scope.processed_pages == [1, 2]
     assert len([node for node in nodes if node.type == "visual"]) == TRUTH["visual_occurrences"]
@@ -186,6 +188,7 @@ def test_bundled_schemas_match_models(name):
     schema = get_schema(name)
     Draft202012Validator.check_schema(schema)
     assert schema == build_schema(name)
+    assert schema["$id"] == f"urn:trueparse:schema:3.0:{name}"
 
 
 def test_preserves_footer_metadata_and_literal_syntax():

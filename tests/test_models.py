@@ -117,12 +117,3 @@ def test_version_matches_pyproject():
 
     assert get_version() == declared.group(1)
     assert _FALLBACK_VERSION == declared.group(1)
-
-
-def test_engine_version_is_stamped_into_output(tmp_path, sample_pdf_path):
-    from trueparse._version import get_version
-    from trueparse.config.options import ParseOptions
-    from trueparse.pipeline.runner import PDFParser
-
-    doc = PDFParser(options=ParseOptions(output_path=str(tmp_path), max_pages=1)).parse(sample_pdf_path)
-    assert doc.engine_version == get_version()

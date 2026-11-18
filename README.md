@@ -6,7 +6,7 @@ TrueParse turns a PDF into readable Markdown, structured document JSON, plain
 text, HTML, or source-backed chunks. You choose the outputs. Nothing is saved
 until your application explicitly saves the result.
 
-This checkout is the **0.2.0 developer preview**. It has not been published to PyPI.
+This checkout is version **0.1.3**.
 
 ## Start with one call
 
@@ -95,7 +95,7 @@ when path-based images were requested. The source PDF is never copied.
 
 ## Use the same result over HTTP
 
-Install and start the stateless service:
+Install and start the service, including background jobs and batches:
 
 ```bash
 pip install ".[api]"
@@ -103,7 +103,8 @@ trueparse serve
 ```
 
 Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
-The service has one parsing endpoint, `POST /v1/parse`, plus `GET /health`.
+Immediate parsing uses `POST /v1/parse`; `GET /health` reports service availability.
+Optional `/v1/jobs` and `/v1/batches` endpoints provide durable background work.
 
 ```bash
 curl http://127.0.0.1:8000/v1/parse \
@@ -126,7 +127,7 @@ with TrueParseClient("http://127.0.0.1:8000") as client:
     result.save("exports/remote-report")
 ```
 
-The service keeps bounded uploads in memory, applies a hard execution deadline,
+Direct parsing keeps bounded uploads in memory, applies a hard execution deadline,
 and returns the requested data. It creates no document artifact directories,
 upload staging files, or job database. Save or store the response in your own
 application. HTTP image delivery is `none` or `base64`.
@@ -142,8 +143,49 @@ async def ingest(path):
 ```
 
 Use `parse()` inside your existing Celery, RQ, task runner, or worker. TrueParse
-owns extraction; your application owns scheduling, retries, storage, and indexing.
-There is no second queue or database to operate.
+owns extraction; your application can keep its own scheduling and storage, or
+use the optional durable job service below. Local parsing needs no database.
+
+## Background jobs and batches
+
+The API manages background workers automatically. Jobs use SQLite and managed
+input/result files under `data/jobs` by default; direct parsing remains in memory.
+Set `TRUEPARSE_JOBS_ROOT` to change that directory, or `TRUEPARSE_JOBS_ENABLED=false`
+to disable jobs and their storage. All job reads and writes use the configured API key.
+
+```python
+from trueparse import TrueParseClient
+
+with TrueParseClient() as client:
+    job = client.submit_job("report.pdf", formats=["json", "markdown"])
+    status = client.wait_for_job(job.job_id, timeout=180)
+    if status.state == "succeeded":
+        result = client.get_job_result(job.job_id)
+        print(result.markdown)
+
+    batch = client.submit_batch(["first.pdf", "second.pdf"], formats=["text"])
+    print(batch.batch_id, batch.counts)
+```
+
+Jobs support progress, cancellation, bounded restart recovery, idempotent
+submission keys and automatic expiry. Batch files succeed/fail independently.
+See the [job HTTP contract](docs/API_References.md#durable-jobs-and-batches) and
+[SDK methods](docs/SDK_References.md#durable-job-client) for states, limits and storage.
+
+For bounded local processing without a service:
+
+```python
+from contextlib import closing
+from trueparse import parse_many
+
+if __name__ == "__main__":
+    with closing(parse_many(["first.pdf", "second.pdf"], formats=["text"])) as outcomes:
+        for outcome in outcomes:
+            print(outcome.input_index, outcome.error or outcome.result.text)
+```
+
+`aparse_many()` is an async iterator; use `async for` and `contextlib.aclosing`
+when stopping early. Both helpers isolate parsing in bounded worker processes.
 
 ## CLI
 
@@ -224,9 +266,8 @@ layout reproduction.
 ```bash
 uv sync --frozen --extra dev --extra ocr --extra tokenizer
 uv run pytest
-uv run ruff check src tests tools
+uv run ruff check src tests
 uv run mypy
-uv run python -B tools/update_schemas.py
 ```
 
 See the [API References](docs/API_References.md),
@@ -235,7 +276,7 @@ See the [API References](docs/API_References.md),
 ### Source organization
 
 ```text
-src/trueparse/
+src/
   api/          HTTP app, routes, uploads, settings and error responses
   cli/          Command-line entry points
   sdk/          Public local facade, HTTP client and result helpers
@@ -249,21 +290,28 @@ src/trueparse/
   chunking/     Retrieval chunks and token counting
   io/           Source loading, path containment and filesystem persistence
   runtime/      Worker supervision, resource budgets and timing
+  jobs/         Durable admission, leases, cancellation and retention
 ```
 
-Import the supported SDK from `trueparse`. Extraction adapters recover evidence;
+Packaging maps the `trueparse` package directly to `src`; run `uv sync` before
+using the checkout. Import the supported SDK from `trueparse`. Extraction adapters recover evidence;
 processing modules reconstruct logical content; exporters render the resulting
 models. HTTP and CLI adapters use the shared request contract. The ASGI entry
 point is `trueparse.api.app:app`.
 
-Independent accuracy evaluation and platform/container execution remain release
-requirements.
+Local validation covers Windows Python 3.10, 3.12 and 3.14, Linux container lifecycle,
+and bounded workload checks. CI includes Python 3.10 through 3.14; hosted runs
+require publishing the tested revision. Sustained target-host capacity and broad
+extraction fidelity remain release evidence requirements.
 
 The reference documents include Python and JavaScript integration examples.
 
 Release history is in the [changelog](CHANGELOG.md).
 
-Docker is optional: `docker compose up --build` starts the same stateless service.
+Docker is optional: `docker compose up --build` starts the API with all endpoints
+and managed background processing in one container.
 The image can omit OCR with `--build-arg INSTALL_OCR=false`.
+Durable job data uses a named volume; `docker compose down` preserves it.
+Use `docker compose down -v` only when deleting persisted job data is intended.
 
 MIT license for TrueParse source; dependencies retain their own licenses.

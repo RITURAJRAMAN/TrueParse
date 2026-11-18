@@ -20,3 +20,4 @@ docs/
 *.log
 .env
 .env.*
+AGENTS.md

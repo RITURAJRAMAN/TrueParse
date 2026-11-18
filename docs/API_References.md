@@ -1,6 +1,6 @@
 # TrueParse API References
 
-HTTP reference for the 0.2.0 developer preview and document schema 3.0.
+HTTP reference for TrueParse 0.1.3 and document schema 3.0.
 This document covers the HTTP service, wire contracts and server operation.
 For the local Python library and Python HTTP client, see [SDK References](SDK_References.md).
 
@@ -21,10 +21,11 @@ For the local Python library and Python HTTP client, see [SDK References](SDK_Re
 - [Server configuration](#server-configuration)
 - [Integration recipes](#integration-recipes)
 - [Operation and troubleshooting](#operation-and-troubleshooting)
+- [Durable jobs and batches](#durable-jobs-and-batches)
 
 ## Start the service
 
-Install from the repository; this preview has not been published to PyPI:
+Install TrueParse 0.1.3 from the repository:
 
 ```bash
 pip install ".[api]"
@@ -46,9 +47,9 @@ The base URL in these examples is `http://127.0.0.1:8000`.
 Shell examples use POSIX quoting; on Windows, use `curl.exe` with shell-appropriate
 quoting, or the JavaScript example below.
 
-The service is synchronous request/response: submit bytes, wait for the result,
-then store it in your application. It does not create document directories,
-persist uploads, schedule jobs, or expose artifact downloads. Responses are JSON
+Direct parsing is synchronous request/response and does not persist uploads.
+Optional job/batch endpoints persist inputs and results with bounded retention.
+Responses are JSON
 envelopes even when only Markdown or text is requested. Outputs are not streamed
 as they are extracted.
 
@@ -78,6 +79,13 @@ need accuracy validation on your document types.
 | GET | `/docs` | None | Interactive OpenAPI documentation |
 | GET | `/redoc` | None | Alternative generated API documentation |
 | GET | `/openapi.json` | None | Machine-readable HTTP schema |
+| POST | `/v1/jobs` | Configured API key | Submit a durable job; 202 |
+| GET | `/v1/jobs/{job_id}` | Configured API key | Status/progress |
+| GET | `/v1/jobs/{job_id}/result` | Configured API key | Successful ParseResult |
+| POST | `/v1/jobs/{job_id}/cancel` | Configured API key | Cancellation request |
+| POST | `/v1/batches` | Configured API key | Submit multiple PDFs; 202 |
+| GET | `/v1/batches/{batch_id}` | Configured API key | Aggregate status and paginated children |
+| POST | `/v1/batches/{batch_id}/cancel` | Configured API key | Cancel unfinished children |
 
 ### GET /health
 
@@ -88,18 +96,21 @@ curl http://127.0.0.1:8000/health
 Example response:
 
 ```json
-{"status":"ok","version":"0.2.0","ocr_available":false,"auth_required":false}
+{"status":"ok","version":"0.1.3","ocr_available":false,"auth_required":false}
 ```
 
 `ocr_available` reports backend availability, not a per-document accuracy test.
 `auth_required` indicates whether parsing requires a key. The health endpoint
 itself remains public.
+If the managed job scheduler stops unexpectedly, health and job endpoints return
+503 `WORKER_UNAVAILABLE`. Restart the API to resume queued work.
 
 ### POST /v1/parse
 
 Accepts one PDF using either multipart form data or a raw PDF body. Successful
 extractions return HTTP 200, including `status:"partial"` when strict mode is off.
-There are no server-path, URL-fetch, batch, polling or job-ID request modes.
+This endpoint has no server-path, URL-fetch or batch request mode. Use the
+dedicated job/batch endpoints for background work and polling.
 
 ## Submit a PDF
 
@@ -310,10 +321,10 @@ representation losses are separate: deliberate image omission is not an error.
 ## Document JSON
 
 `data.json` is a structured object, not a JSON-encoded string. It uses schema 3.0.
-The schema artifacts are [request](../src/trueparse/contracts/schemas/request-3.0.json),
-[response](../src/trueparse/contracts/schemas/response-3.0.json),
-[document](../src/trueparse/contracts/schemas/document-3.0.json) and
-[chunk](../src/trueparse/contracts/schemas/chunk-3.0.json).
+The schema artifacts are [request](../src/contracts/schemas/request-3.0.json),
+[response](../src/contracts/schemas/response-3.0.json),
+[document](../src/contracts/schemas/document-3.0.json) and
+[chunk](../src/contracts/schemas/chunk-3.0.json).
 `/openapi.json` includes the request and typed document contracts.
 
 | Document field | Meaning |
@@ -484,6 +495,10 @@ ceiling does not automatically raise an omitted client default.
 
 Set environment variables before starting/restarting the process.
 
+Authentication is opt-in for every bind address. Setting `TRUEPARSE_API_KEY`
+requires the matching header on parsing and job/batch endpoints. An unset key
+also permits requests when the server binds beyond loopback.
+
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `TRUEPARSE_API_KEY` | Unset | Require `X-API-Key` for parsing |
@@ -491,6 +506,9 @@ Set environment variables before starting/restarting the process.
 | `TRUEPARSE_MAX_UPLOAD_MB` | 200 | Stream-enforced upload ceiling in MiB; minimum 1 |
 | `TRUEPARSE_TIMEOUT_SECONDS` | 120 | Default and maximum worker deadline in seconds; minimum 1 |
 | `TRUEPARSE_RESOURCE_LIMITS` | `{}` | JSON object overriding resource ceilings |
+
+`TRUEPARSE_MAX_UPLOAD_MB` must be a positive integer. Explicit empty, nonnumeric,
+zero and negative values fail API startup before job storage is initialized.
 | `TIKTOKEN_CACHE_DIR` | Library cache location | Shared setup/runtime exact-encoding cache |
 | `DATA_GYM_CACHE_DIR` | Unset | Fallback encoding cache when `TIKTOKEN_CACHE_DIR` is unset |
 | `TRUEPARSE_TOKENIZER_DIR` | Unset | Directory of named `cl100k_base.tiktoken` / `o200k_base.tiktoken` files |
@@ -532,7 +550,7 @@ model/application's requirements; TrueParse does not select it from a model name
 ### CORS and deployment
 
 CORS defaults to disabled. Configured origins allow GET/POST and the
-`Content-Type`, `X-API-Key`, `X-Filename`, `X-Parse-Options` headers. Cookie-based
+`Content-Type`, `X-API-Key`, `X-Filename`, `X-Parse-Options`, `Idempotency-Key` headers. Cookie-based
 credential handling is not configured. An API key embedded in public browser
 JavaScript is visible to users; use your own application backend where appropriate.
 
@@ -540,9 +558,11 @@ The CLI binds to localhost by default. For container deployment,
 `docker compose up --build` uses [the Compose configuration](../docker-compose.yml).
 The [Dockerfile](../Dockerfile) supports `INSTALL_OCR=false`; its normal image
 prepares OCR during build. Exact tokenizer data is a separate setup step.
-The supplied container configuration runs non-root with a read-only filesystem
-and temporary memory storage. Local Docker runtime verification remains a release
-gate; configuration should be validated on your deployment platform.
+The supplied container configuration runs non-root with a read-only filesystem,
+temporary memory storage and a persistent job volume. Local Docker checks cover
+managed API jobs, mixed batches, scanned-PDF OCR, restart persistence and shutdown.
+Validate sustained workloads and operational limits
+on your deployment platform.
 
 ## Integration recipes
 
@@ -633,7 +653,161 @@ requests wait for a slot; this is not a durable queue or a rate-limit API.
 Timed-out parsing workers are terminated and joined. Multiple server processes
 have separate concurrency slots and increase total memory/CPU demand.
 
-Applications own durable queues, retry policy, persistence, indexes and access
-control around stored results. The service does not upload PDFs to a hosted
+Applications can use the optional durable service or their existing queues.
+Applications own indexes and access control around exported results. The service does not upload PDFs to a hosted
 model. Conversion remains heuristic: passing schema validation and receiving
 `completed` does not prove every source item was recovered correctly.
+
+## Durable jobs and batches
+
+Jobs and batches are enabled by default. Start the API once; it owns the job
+scheduler and isolated parsing processes, including startup and shutdown:
+
+```powershell
+$env:TRUEPARSE_JOBS_ROOT = 'D:/trueparse-job-data'
+trueparse serve
+```
+
+The job root defaults to `data/jobs` and must be writable. Startup initializes
+SQLite metadata; submitted jobs stream inputs to staging and publish result JSON
+atomically. Parsing work runs in bounded isolated processes. Shutdown stops
+admission and interrupts outstanding work for recovery on the next API startup.
+Set `TRUEPARSE_JOBS_ENABLED=false` to disable these endpoints with 503
+`JOBS_DISABLED` and avoid job storage initialization. Direct parsing remains in
+memory. The store supports local single-host storage. The configured shared API
+key grants access to the whole store. Operators control tenant isolation.
+
+### Submission
+
+```bash
+curl --fail-with-body http://127.0.0.1:8000/v1/jobs \
+  -H 'Idempotency-Key: report-001' \
+  -F 'file=@report.pdf' \
+  -F 'options={"formats":["json","markdown"],"images":"base64","strict":true}'
+
+curl --fail-with-body http://127.0.0.1:8000/v1/batches \
+  -F 'files=@first.pdf' -F 'files=@second.pdf' \
+  -F 'options={"formats":["text","json"]}'
+```
+
+Jobs accept one multipart `file`; batches accept repeated `files`. Both accept
+one optional JSON `options` field using ParseRequest and normal server ceilings.
+Raw PDF bodies and path-based image delivery are not supported for submissions.
+Uploads stream to managed staging; acknowledgement occurs only after durable
+admission. A 202 response means accepted, not successfully extracted.
+
+Invalid transport/shared options, upload limits or queue capacity reject the
+whole submission and clean staging. After admission, invalid PDFs, missing
+passwords and extraction failures affect only the respective child. Duplicate
+filenames are allowed and never share storage paths.
+
+### Status, results and pagination
+
+| JobStatus field | Meaning |
+| --- | --- |
+| `job_id`, `batch_id` | Opaque job identifier and optional parent |
+| `input_index`, `filename` | Submission order and normalized name |
+| `state` | queued/running/cancelling/succeeded/failed/cancelled/expired |
+| `created_at`, `started_at`, `finished_at`, `expires_at` | Unix seconds; null until known |
+| `attempt`, `max_attempts` | Attempt count and interruption limit |
+| `progress` | stage/current_page/total_pages; not a linear percentage |
+| `document_id` | Available after successful publication |
+| `error` | Optional code/message/retryable/details/page/element_id |
+| `status_url`, `result_url` | Relative polling/result URLs |
+
+GET the result URL after `succeeded`. It returns the existing ParseResult
+envelope. Successful execution may contain `status="partial"` when strict is
+false; strict rejection is a failed job. No raw artifact/asset download routes
+are added; consume the envelope and embedded images.
+
+Result retrieval returns 200 when successful, 409 `JOB_NOT_READY` otherwise,
+410 `JOB_EXPIRED` for expired results, and 404 `JOB_NOT_FOUND` after purge or for
+unknown IDs. Unreadable stored results return 500 `RESULT_UNAVAILABLE`.
+Status queries return `state="expired"` during tombstone retention.
+
+BatchStatus contains `batch_id`, `state`, `total`, `counts` by child state,
+`jobs`, `next_cursor`, and `status_url`. GET supports `cursor` (default 0) and
+`limit` (default 50, range 1–100). Use the returned next_cursor for continuation.
+Aggregate states are queued/running/succeeded/failed/cancelled/mixed/expired.
+Retrieve individual child results rather than expecting large payloads in status.
+
+### Cancellation, recovery and retry safety
+
+POST `/cancel` to cancel a job or unfinished batch children. Queued jobs cancel
+immediately; running jobs enter cancelling (202) until their subprocess stops.
+Repeated requests are safe. Terminal jobs retain their state (200). Completion
+and cancellation are resolved transactionally; a stale attempt cannot publish.
+
+Independent heartbeats renew worker leases. Interrupted executions requeue up
+to MAX_ATTEMPTS; invalid PDFs, options and strict failures are not automatically
+retried. Processing is potentially at-least-once, with fenced publication.
+Shutdown stops claims and terminates/joins children before releasing leases.
+Child processes watch their parent to avoid indefinite orphan execution.
+Heartbeat exceptions are logged with the job ID and traceback. The affected
+process is stopped and its lease is released for bounded interruption recovery.
+Cancellation requests retain their cancelled state. When storage is unavailable
+during shutdown, cleanup continues for the other owned processes and logs the
+failure; persisted leases expire for recovery after storage becomes available.
+
+OCR uses bounded ONNX session pools with two intra-operation threads and one
+inter-operation thread. Successful supplemental OCR probes that find no text in
+an image region on an otherwise readable native page produce an informational
+`OCR_NO_TEXT` issue. OCR initialization, recognition and rendering failures remain
+incomplete extraction. Unrecovered scanned text also remains incomplete. Strict
+mode follows these completeness diagnostics.
+
+Optional `Idempotency-Key` (1–128 characters) returns the original IDs for
+identical bytes, names and effective options. Reuse with different inputs returns
+409 `IDEMPOTENCY_CONFLICT`. Keys are store-wide and survive until record purge.
+Options are included through a keyed digest; fingerprints contain no plaintext
+password. Without a key, each submission is independent. Clients do not retry
+submissions automatically.
+
+### Settings and persistence
+
+Configure these `TRUEPARSE_JOBS_` suffixes on the API service:
+
+| Suffix | Default | Meaning |
+| --- | --- | --- |
+| ENABLED | true | Enable background jobs and batches with managed execution |
+| ROOT | data/jobs | Writable local store |
+| WORKERS | 2 | Global active-job cap in this store |
+| QUEUE_CAPACITY | 100 | Queued/running/cancelling capacity |
+| MAX_BATCH_FILES | 20 | Files per batch |
+| MAX_UPLOAD_BYTES | 209715200 | Aggregate bytes and staging reservation per upload |
+| DISK_QUOTA_BYTES | 2147483648 | Managed payload bytes and reservations |
+| RETENTION_SECONDS | 86400 | Result lifetime after terminal state |
+| TOMBSTONE_SECONDS | 86400 | Additional expired-record lifetime |
+| HEARTBEAT_SECONDS | 5 | Heartbeat/maintenance cadence |
+| LEASE_SECONDS | 30 | Must exceed twice heartbeat interval |
+| STAGING_SECONDS | 300 | Abandoned upload lease |
+| MAX_ATTEMPTS | 2 | Total attempts after interruption |
+
+The normal API upload ceiling and parser's 200 MiB ceiling apply per file.
+Staging reserves MAX_UPLOAD_BYTES before receiving content; even a small request
+can receive 507 `JOB_STORAGE_FULL` when this reservation cannot fit. Claimed jobs
+reserve their maximum response size and fail explicitly if unavailable. Queue
+saturation returns 429 `JOB_QUEUE_FULL`; uploads exceeding size return 413.
+
+Quota covers managed input/result bytes and reservations, not SQLite/WAL metadata,
+filesystem overhead or total RAM. Leave host disk headroom and use container/OS
+resource limits. Output is never silently truncated to fit.
+
+Terminal jobs clear options/passwords and clean input files. Results/errors may
+contain source content and expire after the configured interval. Tombstone expiry
+removes records and idempotency keys. The running API performs periodic retention;
+status/result reads also trigger maintenance. Deletion is logical, not a secure
+erasure guarantee for disks, WAL or backups. Operators own permissions, encryption
+and backups. Direct `/v1/parse` still does not persist input or output.
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+The single Compose file starts one API container, including managed background
+processing, with a named volume mounted at `/app/job-data`. It runs non-root with
+a read-only root filesystem and writable job storage/temporary mounts. Exact
+tokenizer data must be provisioned when requested. `docker compose down` preserves
+the volume; use `down -v` only when deleting persisted job data is intended.

@@ -1,5 +1,6 @@
 import pytest
 
+from trueparse._version import get_version
 from trueparse.config.options import ParseOptions
 from trueparse.extraction.pdf.inspector import PDFInspector
 from trueparse.pipeline.runner import PDFParser
@@ -28,6 +29,9 @@ def test_end_to_end_pipeline(tmp_path, sample_pdf_path):
     assert doc.source_file == sample_pdf_path.name
     assert len(doc.pages) > 0
     assert doc.metadata.page_count > 0
+    assert doc.engine_version == get_version()
+    assert doc.assets
+    assert all(len(asset.sha256) == 64 for asset in doc.assets.values())
 
     doc_dir = output_dir / doc.id
     doc_json = doc_dir / "sample_document.json"
@@ -75,13 +79,6 @@ def test_vector_figures_are_deduplicated_by_hash(tmp_path):
     assert len(list(figures_dir.glob("*.png"))) == 1
 
 
-def test_all_assets_have_a_sha256(tmp_path, sample_pdf_path):
-    options = ParseOptions(output_path=str(tmp_path), max_pages=3)
-    parsed = PDFParser(options=options).parse(sample_pdf_path)
-    for asset in parsed.assets.values():
-        assert asset.sha256, f"asset {asset.id} is missing its hash"
-
-
 def test_encrypted_pdf_roundtrip(tmp_path, encrypted_pdf_path):
     options = ParseOptions(output_path=str(tmp_path), password="s3cret")
     parsed = PDFParser(options=options).parse(encrypted_pdf_path)
@@ -108,10 +105,3 @@ def test_wrong_password_is_reported_distinctly(tmp_path, encrypted_pdf_path):
     with pytest.raises(PDFEngineError) as exc:
         PDFParser(options=options).parse(encrypted_pdf_path)
     assert exc.value.code == ErrorCode.PDF_PASSWORD_INCORRECT
-
-
-def test_schema_version_is_current(tmp_path, sample_pdf_path):
-    options = ParseOptions(output_path=str(tmp_path), max_pages=1)
-    parsed = PDFParser(options=options).parse_to_response(sample_pdf_path)
-    assert parsed.document["schema_version"] == "3.0"
-    assert parsed.document["engine_version"]

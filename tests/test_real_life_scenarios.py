@@ -39,7 +39,6 @@ def live_api(tmp_path_factory):
     environment = os.environ.copy()
     environment.update(
         {
-            "PYTHONPATH": str(PROJECT / "src"),
             "TRUEPARSE_API_KEY": "scenario-test-key",
             "TRUEPARSE_MAX_UPLOAD_MB": "32",
         }

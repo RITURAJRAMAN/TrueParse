@@ -2,6 +2,7 @@ import json
 
 from typer.testing import CliRunner
 
+from trueparse._version import get_version
 from trueparse.cli.main import app
 
 runner = CliRunner()
@@ -41,7 +42,7 @@ def test_cli_json_envelope_and_version(sample_pdf_path):
     result = runner.invoke(app, ["parse", str(sample_pdf_path), "--format", "json", "--ocr", "never"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["data"]["json"]["schema_version"] == "3.0"
-    assert "0.2.0" in runner.invoke(app, ["--version"]).stdout
+    assert runner.invoke(app, ["--version"]).stdout.strip() == get_version()
 
 
 def test_cli_inspect(sample_pdf_path):

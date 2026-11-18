@@ -1,6 +1,6 @@
 # TrueParse SDK References
 
-Python reference for the 0.2.0 developer preview and document schema 3.0.
+Python reference for TrueParse 0.1.3 and document schema 3.0.
 This document covers the local SDK, result helpers and Python HTTP client.
 For endpoints, HTTP status codes and server deployment, see [API References](API_References.md).
 
@@ -22,10 +22,12 @@ For endpoints, HTTP status codes and server deployment, see [API References](API
 - [TrueParseClient](#trueparseclient)
 - [Application recipes](#application-recipes)
 - [Schemas and integration boundaries](#schemas-and-integration-boundaries)
+- [Durable job client](#durable-job-client)
+- [Local multi-PDF parsing](#local-multi-pdf-parsing)
 
 ## Installation
 
-Install from the repository root; the preview has not been published to PyPI:
+Install TrueParse 0.1.3 from the repository root:
 
 ```bash
 pip install .
@@ -57,6 +59,11 @@ from trueparse import (
     aparse,
     get_schema,
     parse,
+    parse_many,
+    aparse_many,
+    JobStatus,
+    BatchStatus,
+    ParseOutcome,
 )
 ```
 
@@ -696,6 +703,11 @@ pages or unrecovered non-info issues before delivering exports. Deliberate page
 scope and image omission are not incompleteness. Strict mode does not detect
 unknown omissions or replace domain-specific validation of critical values.
 
+A successful empty supplemental OCR probe on an otherwise readable native page
+can produce an informational `OCR_NO_TEXT` issue. OCR initialization, recognition
+and rendering failures remain incomplete extraction, as does unrecovered scanned
+text. The ONNX OCR sessions use bounded thread pools in each parsing process.
+
 ## TrueParseClient
 
 Use the Python client when your application calls a deployed TrueParse service.
@@ -843,7 +855,8 @@ def convert_job(pdf_path, unique_export_directory):
 ```
 
 Run this inside your existing job system. Choose a new directory per run. The
-library does not own queues, durable job state, upload storage or result databases.
+local parsing does not own queues or databases; the optional job service provides
+durable scheduling and retained results when explicitly enabled.
 Critical ingestion should validate domain data as well as extraction status.
 
 ## Schemas and integration boundaries
@@ -870,3 +883,134 @@ series extraction, general handwritten recognition or LaTeX reconstruction.
 Quality scores are heuristic diagnostics, not calibrated accuracy probabilities.
 Validate your supported document classes before production use; test counts and
 schema compliance alone do not establish source fidelity.
+
+## Durable job client
+
+Install the client extra and start the API service described in
+[API References](API_References.md#durable-jobs-and-batches). Local `parse()` and
+`aparse()` remain independent of that service.
+
+```python
+from trueparse import TrueParseClient
+
+with TrueParseClient("http://127.0.0.1:8000") as client:
+    job = client.submit_job(
+        "report.pdf", formats=["json", "markdown"],
+        images="base64", idempotency_key="report-001",
+    )
+    status = client.wait_for_job(job.job_id, poll_interval=1, timeout=180)
+    if status.state == "succeeded":
+        result = client.get_job_result(job.job_id)
+        print(result.markdown)
+    else:
+        print(status.state, status.error)
+```
+
+| Method | Return / semantics |
+| --- | --- |
+| `submit_job(source, filename=None, idempotency_key=None, **options)` | JobStatus after durable admission |
+| `get_job(job_id)` | Current JobStatus |
+| `get_job_result(job_id, max_response_bytes=134217728)` | Existing ParseResult; fails if no retained success |
+| `cancel_job(job_id)` | JobStatus after cancellation request |
+| `wait_for_job(job_id, poll_interval=1, timeout=None)` | Terminal JobStatus, not ParseResult |
+| `submit_batch(sources, idempotency_key=None, **options)` | BatchStatus with shared options |
+| `get_batch(batch_id, cursor=None, limit=50)` | Paginated BatchStatus |
+| `cancel_batch(batch_id)` | Aggregate state after cancellation requests |
+
+Async equivalents are `asubmit_job`, `aget_job`, `aget_job_result`, `acancel_job`,
+`await_for_job`, `asubmit_batch`, `aget_batch`, and `acancel_batch`. Await each;
+async polling uses nonblocking sleeps. The client remains a synchronous context
+manager and closes through `with` or `.close()`.
+
+```python
+async def background_conversion(client, pdf_bytes):
+    job = await client.asubmit_job(pdf_bytes, filename="upload.pdf", formats=["text"])
+    status = await client.await_for_job(job.job_id, timeout=180)
+    return await client.aget_job_result(job.job_id) if status.state == "succeeded" else status
+```
+
+Polling timeout stops waiting and does not cancel the job; request cancellation
+explicitly. HTTP transport timeouts also apply. Inputs accept paths, bytes and
+binary streams. Client batch uploads have a 200 MiB total ceiling and at most
+1000 files; the server normally imposes a lower count of 20. Path inputs are
+streamed from open files; nonpath streams follow bounded source loading. Disk I/O
+can raise standard OSError subclasses. Server admission can reject the whole batch
+before any job is accepted; after admission, extraction errors are per child.
+
+No automatic submission retries occur. Use an idempotency key for retry safety;
+changing input/options under an existing key raises IDEMPOTENCY_CONFLICT.
+All image delivery is none/base64. Retrieve JSON plus base64 for portable assets.
+To retrieve a result above 128 MiB, explicitly raise the client result-read limit
+as well as the server's applicable limits. Status envelopes are bounded too.
+
+JobStatus exposes IDs, input_index, filename, state, Unix timestamps, attempts,
+progress, optional document_id/error and status/result URLs. BatchStatus adds
+total/counts/jobs/next_cursor. Failure does not mean get_job raises: inspect
+`status.state` and `status.error`; only transport/API errors raise ParseError.
+Successful execution may have partial extraction in its ParseResult.
+Statuses/results expire; handle JOB_EXPIRED and JOB_NOT_FOUND appropriately.
+
+## Local multi-PDF parsing
+
+`parse_many(sources, *, max_workers=2, ordered=True, **options)` returns a lazy
+iterator of ParseOutcome. It requires neither an API server nor a durable store.
+Use the same ParseRequest options as `parse()`, shared across inputs. Source names
+are path basenames or `document.pdf` for byte/stream inputs; input_index preserves
+identity even when names repeat.
+
+```python
+from contextlib import closing
+from trueparse import parse_many
+
+if __name__ == "__main__":
+    with closing(parse_many(
+        ["first.pdf", "second.pdf"],
+        max_workers=2, formats=["json", "chunks"], timeout_seconds=60,
+    )) as outcomes:
+        for outcome in outcomes:
+            if outcome.error:
+                print(outcome.input_index, outcome.error.code)
+            else:
+                print(outcome.filename, outcome.result.status)
+```
+
+ParseOutcome has `input_index`, `filename`, and exactly one `result` or `error`.
+Per-file failures do not abort other files. Shared invalid options fail before
+starting workers. Each file runs in its own isolated process; max_workers must
+be 1–64. In-flight work plus buffered outcomes is bounded by max_workers. Ordered
+mode preserves input order and backpressures behind slow earlier inputs;
+`ordered=False` yields available outcomes without waiting for earlier inputs.
+
+The source iterable is consumed lazily. Paths are loaded in workers; non-seekable
+streams must be read before transfer. Limits apply per PDF, not globally to a
+whole collection. Source loading and process startup have costs; size concurrency
+for the machine's memory and CPU. There is no durable job ID or restart recovery
+for local iterators.
+
+Use `closing`/`aclosing` or explicit `.close()`/`.aclose()` when stopping early:
+a bare break does not guarantee Python closes a retained generator. Closing
+terminates and joins outstanding workers. Process spawning requires an importable
+entry point and the standard `if __name__ == "__main__"` guard.
+
+`aparse_many(...)` is an **async iterator**, not a coroutine returning a list:
+
+```python
+import asyncio
+from contextlib import aclosing
+from trueparse import aparse_many
+
+async def main():
+    async with aclosing(aparse_many(
+        ["first.pdf", "second.pdf"], formats=["text"], max_workers=2,
+    )) as outcomes:
+        async for outcome in outcomes:
+            print(outcome.input_index, outcome.error or outcome.result.text)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Cancellation stops the iterator and cleans up its owned subprocesses; it does
+not cancel unrelated remote jobs. Separate bundled schema names `job`, `batch`
+and `outcome` use version 1.0: `get_schema("job")`. Existing request/response/
+document/chunk schemas remain version 3.0.

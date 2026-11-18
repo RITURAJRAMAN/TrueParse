@@ -384,11 +384,12 @@ def test_repeated_table_headers_and_precise_page_spans():
     assert any(span.page == 2 and span.row_start >= 3 for chunk in chunks for span in chunk.source_spans)
 
 
-def test_missing_tokenizer_data_never_triggers_a_download(tmp_path, monkeypatch):
+@pytest.mark.parametrize("encoding", ["cl100k_base", "o200k_base"])
+def test_missing_tokenizer_data_never_triggers_a_download(tmp_path, monkeypatch, encoding):
     monkeypatch.setenv("TRUEPARSE_TOKENIZER_FILE", str(tmp_path / "not-provisioned"))
     monkeypatch.setattr("urllib.request.urlopen", Mock(side_effect=AssertionError("network must not run")))
-    with pytest.raises(ParseError, match="Provision cl100k_base"):
-        token_counter("cl100k_base")
+    with pytest.raises(ParseError, match=f"Provision {encoding}"):
+        token_counter(encoding)
 
 
 def test_exact_local_counter_matches_tiktoken_and_enforces_unicode_budget(monkeypatch):

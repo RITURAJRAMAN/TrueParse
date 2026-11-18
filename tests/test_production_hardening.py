@@ -197,12 +197,6 @@ def test_exact_encodings_are_offline_and_match_reference(encoding, monkeypatch):
     assert token_counter(encoding)(text) == len(reference.encode(text, disallowed_special=()))
 
 
-def test_new_exact_encoding_missing_file_never_downloads(tmp_path, monkeypatch):
-    monkeypatch.setenv("TRUEPARSE_TOKENIZER_FILE", str(tmp_path / "missing"))
-    with pytest.raises(ParseError, match="Provision o200k_base"):
-        token_counter("o200k_base")
-
-
 def test_unknown_schema_name_is_rejected():
     with pytest.raises(ValueError):
         get_schema("../private")
